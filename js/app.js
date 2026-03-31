@@ -1,318 +1,428 @@
 /**
- * ClearFlow — App Controller
+ * ClearFlow — App Controller v2
+ * Profile → Upload → Report flow
  */
 
-const CATEGORY_COLORS = {
-  housing:        '#b85c5c',
-  travel:         '#5c8ab8',
-  dining:         '#c9a84c',
-  entertainment:  '#8b5e8b',
-  groceries:      '#5ca87a',
-  subscriptions:  '#6b8f71',
-  utilities:      '#7a9ab8',
-  health_fitness: '#c97a5c',
-  income:         '#4a6e50',
-  shared_income:  '#7aaa82',
-  other:          '#aaa8a5',
+// ── State ──────────────────────────────────────────────────
+let profile = {
+  incomes: [],   // [{label, keyword, cadence, range}]
+  categories: [], // selected category keys
+  customCats: [], // [{key, label, icon, color, keywords:[]}]
 };
 
-const CATEGORY_LABELS = {
-  housing:        'Housing & Rent',
-  travel:         'Travel',
-  dining:         'Dining & Bars',
-  entertainment:  'Entertainment & Social',
-  groceries:      'Groceries',
-  subscriptions:  'Subscriptions',
-  utilities:      'Utilities',
-  health_fitness: 'Health & Fitness',
-  income:         'Income',
-  shared_income:  'Shared Income',
-  other:          'Other',
-};
-
-// State
 let files = { bank: null, credit: [], venmo: [] };
 let lastResult = null;
+let reportMonths = [];
 
-// ── Page nav ──────────────────────────────────────────────
+// ── Default categories ─────────────────────────────────────
+const DEFAULT_CATS = [
+  { key:'rent',          label:'Rent / Mortgage',       icon:'🏠' },
+  { key:'groceries',     label:'Groceries',              icon:'🛒' },
+  { key:'dining',        label:'Dining & Bars',          icon:'🍽️' },
+  { key:'amazon',        label:'Amazon',                 icon:'📦' },
+  { key:'pets',          label:'Pets',                   icon:'🐾' },
+  { key:'travel',        label:'Travel',                 icon:'✈️' },
+  { key:'transportation',label:'Gas & Transport',        icon:'⛽' },
+  { key:'shopping',      label:'Shopping & Retail',      icon:'🛍️' },
+  { key:'subscriptions', label:'Subscriptions',          icon:'📱' },
+  { key:'health',        label:'Health & Medical',       icon:'💊' },
+  { key:'fitness',       label:'Gym & Fitness',          icon:'🏋️' },
+  { key:'entertainment', label:'Entertainment',          icon:'🎉' },
+];
+
+const CADENCE_OPTIONS = ['Weekly','Bi-weekly','Semi-monthly','Monthly'];
+const RANGE_OPTIONS   = ['< $500','$500–$1,000','$1,000–$1,500','$1,500–$2,000','$2,000–$3,000','$3,000–$5,000','$5,000+'];
+
+// ── Init ───────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  buildCatGrid();
+  addIncomeEntry(); // start with one
+});
+
+// ── Page nav ───────────────────────────────────────────────
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
-  window.scrollTo(0, 0);
+  window.scrollTo(0,0);
 }
 
-// ── File handling ─────────────────────────────────────────
-function handleFileSelect(type, input) {
+// ── Income entries ─────────────────────────────────────────
+let incomeCount = 0;
+
+function addIncomeEntry(prefill = {}) {
+  incomeCount++;
+  const id = 'income-' + incomeCount;
+  const div = document.createElement('div');
+  div.className = 'income-entry';
+  div.id = id;
+  div.innerHTML = `
+    <button class="remove-btn" onclick="removeEntry('${id}')" title="Remove">✕</button>
+    <div class="income-grid" style="margin-bottom:10px;">
+      <div>
+        <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Employer / Source name</label>
+        <input class="form-input" placeholder="e.g. KBS, UC Berkeley, Freelance" value="${prefill.label||''}" data-field="label" />
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Keyword in bank statement</label>
+        <input class="form-input" placeholder="e.g. KBS-OSV, BERKELEY, CLIENT" value="${prefill.keyword||''}" data-field="keyword" />
+      </div>
+    </div>
+    <div class="income-grid-3">
+      <div>
+        <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Pay cadence</label>
+        <select class="form-input" data-field="cadence">
+          ${CADENCE_OPTIONS.map(o => `<option ${prefill.cadence===o?'selected':''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Approx. per paycheck</label>
+        <select class="form-input" data-field="range">
+          ${RANGE_OPTIONS.map(o => `<option ${prefill.range===o?'selected':''}>${o}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+  document.getElementById('income-entries').appendChild(div);
+}
+
+function removeEntry(id) {
+  const el = document.getElementById(id);
+  if (el && document.querySelectorAll('.income-entry').length > 1) el.remove();
+}
+
+function collectProfile() {
+  profile.incomes = [];
+  document.querySelectorAll('.income-entry').forEach(entry => {
+    const label   = entry.querySelector('[data-field="label"]')?.value.trim();
+    const keyword = entry.querySelector('[data-field="keyword"]')?.value.trim();
+    const cadence = entry.querySelector('[data-field="cadence"]')?.value;
+    const range   = entry.querySelector('[data-field="range"]')?.value;
+    if (label || keyword) profile.incomes.push({ label, keyword, cadence, range });
+  });
+  profile.categories = Array.from(document.querySelectorAll('.cat-pill.selected')).map(p => p.dataset.key);
+}
+
+// ── Category pills ─────────────────────────────────────────
+function buildCatGrid() {
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = '';
+  DEFAULT_CATS.forEach(cat => {
+    const pill = document.createElement('div');
+    pill.className = 'cat-pill selected'; // all selected by default
+    pill.dataset.key = cat.key;
+    pill.innerHTML = `<span class="cat-icon">${cat.icon}</span>${cat.label}`;
+    pill.onclick = () => pill.classList.toggle('selected');
+    grid.appendChild(pill);
+  });
+}
+
+function addCustomCat() {
+  const input = document.getElementById('custom-cat-input');
+  const val = input.value.trim();
+  if (!val) return;
+  const key = val.toLowerCase().replace(/\s+/g,'_');
+  const cat = { key, label: val, icon: '📋', color: '#888', keywords: [val.toLowerCase()] };
+  profile.customCats.push(cat);
+  const grid = document.getElementById('cat-grid');
+  const pill = document.createElement('div');
+  pill.className = 'cat-pill selected';
+  pill.dataset.key = key;
+  pill.innerHTML = `<span class="cat-icon">📋</span>${val}`;
+  pill.onclick = () => pill.classList.toggle('selected');
+  grid.appendChild(pill);
+  input.value = '';
+}
+
+function goToUpload() {
+  collectProfile();
+  showPage('upload');
+}
+
+// ── File handling ──────────────────────────────────────────
+function handleFile(type, input) {
   const fileList = Array.from(input.files);
-  const zone = document.getElementById('zone-' + type);
+  const zone  = document.getElementById('zone-' + type);
   const label = document.getElementById('label-' + type);
   zone.classList.add('filled');
-
-  if (type === 'venmo') {
-    files.venmo = fileList;
-    label.textContent = fileList.length + ' file(s): ' + fileList.map(f => f.name).join(', ');
-  } else if (type === 'credit') {
-    files.credit = fileList;
-    label.textContent = fileList.length + ' file(s): ' + fileList.map(f => f.name).join(', ');
-  } else {
-    files[type] = fileList[0];
+  if (type === 'bank') {
+    files.bank = fileList[0];
     label.textContent = '✓ ' + fileList[0].name;
+  } else {
+    files[type] = fileList;
+    label.textContent = fileList.length + ' file(s): ' + fileList.map(f=>f.name).join(', ');
   }
 }
 
-function readFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
-    reader.onerror = () => reject(new Error('Failed to read: ' + file.name));
-    reader.readAsText(file);
+function readFileText(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = () => rej(new Error('Cannot read: ' + file.name));
+    r.readAsText(file);
   });
 }
 
-function readXlsxAsCSV(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => {
+function readXlsxAsCsv(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = e => {
       try {
-        const wb = XLSX.read(e.target.result, { type: 'binary' });
-        // Find the Transaction Details sheet, or use first sheet
-        const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('detail')) || wb.SheetNames[0];
-        const ws = wb.Sheets[sheetName];
-        resolve(XLSX.utils.sheet_to_csv(ws));
-      } catch (err) {
-        reject(new Error('Failed to parse XLSX: ' + file.name));
-      }
+        const wb = XLSX.read(e.target.result, {type:'binary'});
+        const sn = wb.SheetNames.find(n => n.toLowerCase().includes('detail')) || wb.SheetNames[0];
+        res(XLSX.utils.sheet_to_csv(wb.Sheets[sn]));
+      } catch(err) { rej(new Error('Cannot parse XLSX: ' + file.name)); }
     };
-    reader.onerror = () => reject(new Error('Failed to read: ' + file.name));
-    reader.readAsBinaryString(file);
+    r.onerror = () => rej(new Error('Cannot read: ' + file.name));
+    r.readAsBinaryString(file);
   });
 }
 
-async function readAnyFile(file) {
-  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-    return readXlsxAsCSV(file);
-  }
-  return readFile(file);
+async function readAny(file) {
+  if (file.name.match(/\.xlsx?$/i)) return readXlsxAsCsv(file);
+  return readFileText(file);
 }
 
-// ── Process ───────────────────────────────────────────────
+// ── Process ────────────────────────────────────────────────
 async function processFiles() {
   const btn = document.getElementById('generate-btn');
-  const errEl = document.getElementById('upload-error');
-  errEl.classList.remove('show');
+  const err = document.getElementById('upload-error');
+  err.classList.remove('show');
 
   if (!files.bank) {
-    errEl.textContent = 'Please upload a bank statement to continue.';
-    errEl.classList.add('show');
+    err.textContent = 'Please upload a bank statement to continue.';
+    err.classList.add('show');
     return;
   }
 
-  btn.textContent = 'Processing...';
-  btn.disabled = true;
+  btn.textContent = 'Processing…'; btn.disabled = true;
 
   try {
-    const bankCsv = await readFile(files.bank);
-    const creditCsvs = await Promise.all(files.credit.map(readAnyFile));
-    const venmoCsvs = await Promise.all(files.venmo.map(readFile));
+    const bankCsv   = await readFileText(files.bank);
+    const creditCsv = (await Promise.all(files.credit.map(readAny))).join('\n');
+    const venmoCsvs = await Promise.all(files.venmo.map(readFileText));
 
-    const result = PersonalFinanceAdapter.adaptPersonalFinance(bankCsv, creditCsvs.join('\n'), venmoCsvs);
+    const result = PersonalFinanceAdapter.adaptPersonalFinance(
+      bankCsv, creditCsv, venmoCsvs, profile
+    );
     lastResult = result;
-
     renderReport(result);
     showPage('report');
-  } catch (err) {
-    errEl.textContent = 'Error processing files: ' + err.message;
-    errEl.classList.add('show');
-    console.error(err);
+  } catch(e) {
+    err.textContent = 'Error: ' + e.message;
+    err.classList.add('show');
+    console.error(e);
   } finally {
-    btn.textContent = 'Generate My Report →';
-    btn.disabled = false;
+    btn.textContent = 'Generate My Report →'; btn.disabled = false;
   }
 }
 
-// ── Load sample data ──────────────────────────────────────
-async function loadSample() {
-  // Build a sample result from known Hayden YTD data
-  const sampleResult = buildSampleResult();
-  lastResult = sampleResult;
-  renderReport(sampleResult);
+// ── Sample ─────────────────────────────────────────────────
+function loadSample() {
+  lastResult = buildSampleResult();
+  renderReport(lastResult);
   showPage('report');
 }
 
 function buildSampleResult() {
+  const months = { Jan:0, Feb:1, Mar:2 };
   return {
-    summary: {
-      total_transactions: 120,
-      total_income: 30362.61,
-      total_expenses: 14006.01,
-    },
-    by_category: {
-      housing:        { total: -10500, label: 'Housing & Rent', txn_count: 3 },
-      car_loan:       { total: -844.32, label: 'Car Loan', txn_count: 3 },
-      utilities:      { total: -229.96, label: 'Internet (Sonic Net)', txn_count: 3 },
-      health_fitness: { total: -387, label: 'Gym (Funky Door)', txn_count: 2 },
-      groceries:      { total: -193.87, label: 'Groceries', txn_count: 5 },
-      dining:         { total: -210.66, label: 'Dining & Bars', txn_count: 12 },
-      travel:         { total: -242.85, label: 'Travel', txn_count: 8 },
-      entertainment:  { total: -1185.42, label: 'Entertainment & Social', txn_count: 18 },
-      subscriptions:  { total: -147.93, label: 'Subscriptions', txn_count: 8 },
-    },
+    summary: { total_income: 30362.61, total_expenses: 31643, net: -1280 },
     monthly: {
-      Jan: { income: 12828.34, expenses: 3984.04, net: 8844.30 },
-      Feb: { income: 8612.64, expenses: 4697.24, net: 3915.40 },
-      Mar: { income: 8921.63, expenses: 5325.73, net: 3595.90 },
+      Jan: { income: 12828.34, by_cat: { rent:3500, car_loan:281.44, utilities:76.66, fitness:0, groceries:122.95, dining:0, travel:0, subscriptions:2.99, entertainment:0, shopping:0, amazon:0, pets:0 } },
+      Feb: { income: 8612.64,  by_cat: { rent:3500, car_loan:281.44, utilities:0,     fitness:218, groceries:70.92, dining:67.23, travel:1104.45, subscriptions:102.98, entertainment:342.22, shopping:458.43, amazon:0, pets:380.48 } },
+      Mar: { income: 8921.63,  by_cat: { rent:3500, car_loan:281.44, utilities:153.30,fitness:169, groceries:0,    dining:143.43, travel:694.24+449, subscriptions:41.96, entertainment:843.20, shopping:0, amazon:525.15, pets:500.65 } },
     },
     transactions: [],
-    trial_balance: [],
   };
 }
 
-// ── Render ────────────────────────────────────────────────
+// ── Render report ──────────────────────────────────────────
+const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtN = n => (n < 0 ? '–' : '') + fmt(n);
+
 function renderReport(result) {
-  const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const s = result.summary;
+  const { summary } = result;
 
-  document.getElementById('card-income').textContent = fmt(s.total_income);
-  document.getElementById('card-expenses').textContent = fmt(s.total_expenses);
-  const net = s.total_income - s.total_expenses;
-  document.getElementById('card-net').textContent = (net < 0 ? '–' : '') + fmt(net);
-  document.getElementById('card-net-sub').textContent = net >= 0 ? 'You came out ahead 🎉' : 'Spending exceeded income';
+  document.getElementById('card-income').textContent   = fmt(summary.total_income);
+  document.getElementById('card-expenses').textContent = fmt(summary.total_expenses);
+  const net = summary.net || (summary.total_income - summary.total_expenses);
+  document.getElementById('card-net').textContent      = fmtN(net);
+  document.getElementById('card-net-sub').textContent  = net >= 0 ? 'You came out ahead 🎉' : 'Expenses exceeded income';
 
-  renderSpending(result);
+  const months = Object.keys(result.monthly || {});
+  reportMonths = months;
+  const from = document.getElementById('date-from')?.value || '';
+  const to   = document.getElementById('date-to')?.value   || '';
+  document.getElementById('report-period').textContent = from && to ? from + ' – ' + to : 'YTD Report';
+
   renderCashFlow(result);
+  renderSpending(result);
   renderTransactions(result);
 }
 
-function renderSpending(result) {
-  const container = document.getElementById('spending-breakdown');
-  const cats = result.by_category || {};
-  const expenses = Object.entries(cats)
-    .filter(([k, v]) => v.total < 0)
-    .sort((a, b) => a[1].total - b[1].total);
+// ── Cash flow table ────────────────────────────────────────
+function renderCashFlow(result) {
+  const months  = Object.keys(result.monthly || {});
+  const monthly = result.monthly || {};
+  const cats    = getActiveCats();
 
-  if (!expenses.length) {
-    container.innerHTML = '<p style="color:var(--muted); padding: 20px 0;">No spending data available.</p>';
+  // Build YTD totals
+  const ytdIncome = months.reduce((s,m) => s + (monthly[m]?.income||0), 0);
+  const ytdByCat  = {};
+  cats.forEach(c => {
+    ytdByCat[c.key] = months.reduce((s,m) => s + (monthly[m]?.by_cat?.[c.key]||0), 0);
+  });
+  const ytdExpenses = Object.values(ytdByCat).reduce((s,v)=>s+v,0);
+  const ytdNet      = ytdIncome - ytdExpenses;
+
+  let html = '<div style="overflow-x:auto;"><table class="report-table">';
+
+  // Header
+  html += '<thead><tr><th>Category</th>';
+  months.forEach(m => html += `<th>${m}</th>`);
+  html += '<th style="background:var(--bg2);">YTD</th></tr></thead>';
+  html += '<tbody>';
+
+  // Income section
+  html += `<tr class="section-header"><td colspan="${months.length+2}">Income</td></tr>`;
+  html += '<tr>';
+  html += '<td>Total Income</td>';
+  months.forEach(m => {
+    const v = monthly[m]?.income || 0;
+    html += `<td class="num-pos">${fmt(v)}</td>`;
+  });
+  html += `<td class="num-pos" style="background:var(--bg2);">${fmt(ytdIncome)}</td>`;
+  html += '</tr>';
+
+  // Expenses section
+  html += `<tr class="section-header"><td colspan="${months.length+2}">Expenses</td></tr>`;
+  cats.forEach(cat => {
+    const hasAny = months.some(m => (monthly[m]?.by_cat?.[cat.key]||0) > 0) || ytdByCat[cat.key] > 0;
+    if (!hasAny) return;
+    html += '<tr>';
+    html += `<td>${cat.icon} ${cat.label}</td>`;
+    months.forEach(m => {
+      const v = monthly[m]?.by_cat?.[cat.key] || 0;
+      html += v > 0 ? `<td class="num-neg">${fmt(v)}</td>` : `<td class="num-zero">—</td>`;
+    });
+    html += `<td class="num-neg" style="background:var(--bg2);">${ytdByCat[cat.key]>0?fmt(ytdByCat[cat.key]):'—'}</td>`;
+    html += '</tr>';
+  });
+
+  // Totals
+  html += '<tr class="total-row">';
+  html += '<td>Total Expenses</td>';
+  months.forEach(m => {
+    const v = cats.reduce((s,c) => s+(monthly[m]?.by_cat?.[c.key]||0), 0);
+    html += `<td class="num-neg">${fmt(v)}</td>`;
+  });
+  html += `<td class="num-neg" style="background:var(--bg2);">${fmt(ytdExpenses)}</td>`;
+  html += '</tr>';
+
+  // Net
+  html += '<tr class="net-row">';
+  html += '<td>Net Income</td>';
+  months.forEach(m => {
+    const inc = monthly[m]?.income || 0;
+    const exp = cats.reduce((s,c) => s+(monthly[m]?.by_cat?.[c.key]||0), 0);
+    const n   = inc - exp;
+    html += `<td class="${n>=0?'num-pos':'num-neg'}">${fmtN(n)}</td>`;
+  });
+  html += `<td class="${ytdNet>=0?'num-pos':'num-neg'}" style="background:var(--accent-light);">${fmtN(ytdNet)}</td>`;
+  html += '</tr>';
+
+  html += '</tbody></table></div>';
+  document.getElementById('cashflow-content').innerHTML = html;
+}
+
+// ── Spending breakdown ─────────────────────────────────────
+function renderSpending(result) {
+  const monthly  = result.monthly || {};
+  const months   = Object.keys(monthly);
+  const cats     = getActiveCats();
+  const COLORS   = window.MERCHANT_RULES || {};
+
+  const totals = cats.map(cat => ({
+    ...cat,
+    total: months.reduce((s,m) => s+(monthly[m]?.by_cat?.[cat.key]||0), 0),
+    color: COLORS[cat.key]?.color || '#aaa',
+  })).filter(c => c.total > 0).sort((a,b) => b.total - a.total);
+
+  if (!totals.length) {
+    document.getElementById('spending-content').innerHTML = '<p style="color:var(--muted);padding:20px 0;">No expense data available.</p>';
     return;
   }
 
-  const maxAbs = Math.max(...expenses.map(([, v]) => Math.abs(v.total)));
-
-  let html = '<div>';
-  for (const [key, cat] of expenses) {
-    const abs = Math.abs(cat.total);
-    const pct = (abs / maxAbs * 100).toFixed(0);
-    const color = CATEGORY_COLORS[key] || '#aaa';
-    const label = CATEGORY_LABELS[key] || cat.label || key;
-
+  const maxVal = totals[0].total;
+  let html = '<div style="margin-top:8px;">';
+  totals.forEach(c => {
+    const pct = (c.total/maxVal*100).toFixed(0);
     html += `
       <div class="table-row">
-        <span class="lbl">
-          <span class="dot" style="background:${color}"></span>
-          ${label}
-        </span>
-        <span class="val">$${abs.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+        <span class="lbl"><span class="dot" style="background:${c.color}"></span>${c.icon} ${c.label}</span>
+        <span class="val">${fmt(c.total)}</span>
       </div>
-      <div class="progress-bar" style="margin-bottom: 12px;">
-        <div class="progress-fill" style="width:${pct}%; background:${color};"></div>
+      <div class="progress-bar" style="margin-bottom:12px;">
+        <div class="progress-fill" style="width:${pct}%;background:${c.color};"></div>
       </div>`;
-  }
-  html += '</div>';
-  container.innerHTML = html;
-}
-
-function renderCashFlow(result) {
-  const container = document.getElementById('cashflow-table');
-  const months = result.monthly || {};
-
-  let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.9em;">';
-  html += '<thead><tr style="border-bottom: 2px solid var(--border);">';
-  html += '<th style="text-align:left; padding: 10px 0; color: var(--muted); font-weight:700; font-size:0.78em; text-transform:uppercase; letter-spacing:0.08em;">Category</th>';
-  Object.keys(months).forEach(m => {
-    html += `<th style="text-align:right; padding: 10px 0; color: var(--muted); font-weight:700; font-size:0.78em; text-transform:uppercase; letter-spacing:0.08em;">${m}</th>`;
   });
-  html += '<th style="text-align:right; padding: 10px 0; color: var(--muted); font-weight:700; font-size:0.78em; text-transform:uppercase; letter-spacing:0.08em;">YTD</th>';
-  html += '</tr></thead><tbody>';
-
-  const rows = ['income', 'expenses', 'net'];
-  const labels = { income: 'Total Income', expenses: 'Total Expenses', net: 'Net Income' };
-
-  for (const row of rows) {
-    const isNet = row === 'net';
-    let ytd = 0;
-    html += `<tr style="border-bottom: 1px solid var(--border); ${isNet ? 'font-weight:700;' : ''}">`;
-    html += `<td style="padding: 11px 0;">${labels[row]}</td>`;
-    Object.values(months).forEach(m => {
-      const val = m[row] || 0;
-      ytd += val;
-      const color = isNet ? (val >= 0 ? 'var(--accent-dark)' : 'var(--danger)') : '';
-      html += `<td style="text-align:right; padding: 11px 0; color:${color};">$${Math.abs(val).toLocaleString('en-US', {minimumFractionDigits:2})}</td>`;
-    });
-    const ytdColor = isNet ? (ytd >= 0 ? 'var(--accent-dark)' : 'var(--danger)') : '';
-    html += `<td style="text-align:right; padding: 11px 0; color:${ytdColor};">$${Math.abs(ytd).toLocaleString('en-US', {minimumFractionDigits:2})}</td>`;
-    html += '</tr>';
-  }
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
+  html += '</div>';
+  document.getElementById('spending-content').innerHTML = html;
 }
 
+// ── Transactions ───────────────────────────────────────────
 function renderTransactions(result) {
-  const container = document.getElementById('transactions-table');
   const txns = result.transactions || [];
-
   if (!txns.length) {
-    container.innerHTML = '<p style="color:var(--muted); padding: 20px 0;">No transaction data available in sample mode.</p>';
+    document.getElementById('transactions-content').innerHTML = '<p style="color:var(--muted);padding:20px 0;">Upload statements to see transactions.</p>';
     return;
   }
+  const cats = getActiveCats();
+  const catMap = Object.fromEntries(cats.map(c=>[c.key,c]));
 
-  let html = '<table style="width:100%; border-collapse:collapse; font-size:0.88em;">';
-  html += '<thead><tr style="border-bottom: 2px solid var(--border);">';
-  ['Date','Description','Category','Amount'].forEach(h => {
-    html += `<th style="text-align:left; padding: 10px 0; color:var(--muted); font-weight:700; font-size:0.75em; text-transform:uppercase; letter-spacing:0.08em;">${h}</th>`;
-  });
-  html += '</tr></thead><tbody>';
-
-  for (const t of txns.slice(0, 200)) {
+  let html = '<div style="overflow-x:auto;"><table class="report-table">';
+  html += '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
+  for (const t of txns.slice(0,300)) {
+    const cat   = catMap[t.category] || { icon:'•', label: t.category };
     const color = t.amount >= 0 ? 'var(--accent-dark)' : 'var(--danger)';
-    const label = CATEGORY_LABELS[t.category] || t.category;
-    html += `<tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:9px 0; color:var(--muted); white-space:nowrap;">${t.date}</td>
-      <td style="padding:9px 0; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.description}</td>
-      <td style="padding:9px 0;"><span class="badge" style="background:var(--accent-light); color:var(--accent-dark);">${label}</span></td>
-      <td style="padding:9px 0; text-align:right; color:${color}; font-weight:600;">
-        ${t.amount >= 0 ? '+' : ''}$${Math.abs(t.amount).toLocaleString('en-US', {minimumFractionDigits:2})}
-      </td>
+    html += `<tr>
+      <td style="color:var(--muted);white-space:nowrap;">${t.date}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.description}</td>
+      <td><span class="badge" style="background:var(--accent-light);color:var(--accent-dark);">${cat.icon||''} ${cat.label||t.category}</span></td>
+      <td style="text-align:right;color:${color};font-weight:600;">${t.amount>=0?'+':'–'}${fmt(t.amount)}</td>
     </tr>`;
   }
-
-  html += '</tbody></table>';
-  if (txns.length > 200) html += `<p style="color:var(--muted); font-size:0.82em; margin-top:10px;">Showing 200 of ${txns.length} transactions. Export CSV for full list.</p>`;
-  container.innerHTML = html;
+  if (txns.length > 300) html += `<tr><td colspan="4" style="color:var(--muted);font-size:0.82em;padding:10px;">Showing 300 of ${txns.length}. Export CSV for full list.</td></tr>`;
+  html += '</tbody></table></div>';
+  document.getElementById('transactions-content').innerHTML = html;
 }
 
-// ── Tabs ──────────────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
-
-  document.getElementById('tab-' + name).style.display = 'block';
-  event.target.classList.add('active');
+// ── Tabs ───────────────────────────────────────────────────
+function switchTab(name, btn) {
+  ['cashflow','spending','transactions'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===name ? 'block' : 'none';
+    document.getElementById('tab-btn-'+t)?.classList.toggle('active', t===name);
+  });
 }
 
-// ── Export ────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────
+function getActiveCats() {
+  const selected = profile.categories.length ? profile.categories : DEFAULT_CATS.map(c=>c.key);
+  const base  = DEFAULT_CATS.filter(c => selected.includes(c.key));
+  const custom = profile.customCats || [];
+  return [...base, ...custom];
+}
+
 function downloadCSV() {
   if (!lastResult?.transactions?.length) {
-    alert('No transaction data to export. Run a report with uploaded statements first.');
+    alert('No transaction data. Run a report with uploaded files first.');
     return;
   }
-  const txns = lastResult.transactions;
-  const csv = 'Date,Description,Amount,Category,Subcategory,Type\n' +
-    txns.map(t => `"${t.date}","${t.description}",${t.amount},"${t.category}","${t.subcategory}","${t.type}"`).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'clearflow-transactions.csv';
+  const csv = 'Date,Description,Amount,Category,Type\n' +
+    lastResult.transactions.map(t=>`"${t.date}","${t.description}",${t.amount},"${t.category}","${t.type}"`).join('\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})),
+    download: 'clearflow-transactions.csv',
+  });
   a.click();
-  URL.revokeObjectURL(url);
 }

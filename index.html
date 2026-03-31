@@ -4,160 +4,222 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClearFlow — Personal Finance</title>
-  <meta name="description" content="Upload your bank, credit, and Venmo statements. Get a clean monthly breakdown of your income, spending, and net income — no accountant required." />
+  <meta name="description" content="Upload your bank, credit, and Venmo statements. Get a clean monthly breakdown of your income and spending." />
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Nunito+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* Step indicator */
+    .steps { display: flex; align-items: center; gap: 0; margin-bottom: 40px; }
+    .step { display: flex; align-items: center; gap: 10px; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 0.78em; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step.active .step-num { background: var(--accent); color: white; }
+    .step.done .step-num { background: var(--accent-light); color: var(--accent-dark); }
+    .step-label { font-size: 0.85em; font-weight: 600; color: var(--muted); }
+    .step.active .step-label { color: var(--text); }
+    .step-line { flex: 1; height: 2px; background: var(--border); margin: 0 12px; min-width: 24px; }
+    .step-line.done { background: var(--accent-light); }
+
+    /* Income entries */
+    .income-entry { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 12px; position: relative; }
+    .income-entry .remove-btn { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.1em; line-height: 1; }
+    .income-entry .remove-btn:hover { color: var(--danger); }
+    .income-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .income-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media(max-width:600px) { .income-grid, .income-grid-3 { grid-template-columns: 1fr; } }
+
+    /* Category pills */
+    .cat-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+    .cat-pill { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 24px; border: 2px solid var(--border); background: white; cursor: pointer; font-size: 0.85em; font-weight: 600; transition: all 0.15s; user-select: none; }
+    .cat-pill:hover { border-color: var(--accent); }
+    .cat-pill.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent-dark); }
+    .cat-pill .cat-icon { font-size: 1.1em; }
+
+    /* Report table */
+    .report-table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+    .report-table th { text-align: right; padding: 9px 12px; color: var(--muted); font-weight: 700; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 2px solid var(--border); }
+    .report-table th:first-child { text-align: left; }
+    .report-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); text-align: right; }
+    .report-table td:first-child { text-align: left; }
+    .report-table tr.section-header td { background: var(--bg2); font-weight: 700; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 6px 12px; }
+    .report-table tr.total-row td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: 2px solid var(--border); }
+    .report-table tr.net-row td { font-weight: 700; background: var(--accent-light); color: var(--accent-dark); }
+    .num-pos { color: var(--accent-dark); }
+    .num-neg { color: var(--danger); }
+    .num-zero { color: var(--muted); }
+  </style>
 </head>
 <body>
 
   <!-- NAV -->
   <nav class="nav">
-    <a href="#" class="logo" onclick="showPage('landing')">
-      <span class="logo-dot"></span>
-      ClearFlow
+    <a href="#" class="logo" onclick="showPage('landing'); return false;">
+      <span class="logo-dot"></span> ClearFlow
     </a>
     <div class="nav-links">
-      <a href="#" onclick="showPage('upload')">Upload</a>
-      <a href="#" onclick="showPage('sample')">Sample Report</a>
+      <a href="#" onclick="showPage('profile'); return false;">New Report</a>
       <a href="https://github.com/haydenestes/clearflow" target="_blank">GitHub</a>
     </div>
   </nav>
 
-  <!-- ══════════════════════════════════════
-       LANDING PAGE
-  ══════════════════════════════════════ -->
+  <!-- ══════════════════ LANDING ══════════════════ -->
   <div id="page-landing" class="page active">
     <div class="container">
-
-      <!-- Hero -->
       <div style="padding: 80px 0 60px; max-width: 600px;">
         <span class="badge" style="margin-bottom: 20px; display: inline-block;">✦ Personal Finance</span>
-        <h1 style="font-family: 'Fraunces', serif; font-size: 3.2em; font-weight: 300; line-height: 1.15; margin-bottom: 20px; color: var(--text);">
-          Know exactly<br>where your money <em style="font-style: italic; color: var(--accent);">goes.</em>
+        <h1 style="font-family:'Fraunces',serif; font-size:3.2em; font-weight:300; line-height:1.15; margin-bottom:20px;">
+          Know exactly<br>where your money <em style="font-style:italic; color:var(--accent);">goes.</em>
         </h1>
-        <p style="font-size: 1.05em; color: var(--muted); line-height: 1.75; max-width: 480px; margin-bottom: 34px;">
+        <p style="font-size:1.05em; color:var(--muted); line-height:1.75; max-width:480px; margin-bottom:34px;">
           Upload your bank, credit, and Venmo statements. Get a clean monthly cash flow and spending breakdown — no accountant required.
         </p>
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <button class="btn btn-primary" onclick="showPage('upload')">⬆ Upload Statements</button>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="showPage('profile')">Get Started →</button>
           <button class="btn btn-secondary" onclick="loadSample()">View Sample Report</button>
         </div>
       </div>
-
-      <!-- Feature cards -->
-      <div class="grid-3" style="margin-bottom: 80px;">
-        <div class="card">
-          <div style="font-size: 1.6em; margin-bottom: 10px;">📤</div>
-          <div style="font-weight: 700; margin-bottom: 6px;">Upload Any Format</div>
-          <div style="font-size: 0.88em; color: var(--muted);">Bank CSV, credit card CSV, Venmo exports — all supported. No special export needed.</div>
-        </div>
-        <div class="card">
-          <div style="font-size: 1.6em; margin-bottom: 10px;">🏷️</div>
-          <div style="font-weight: 700; margin-bottom: 6px;">Auto-Categorized</div>
-          <div style="font-size: 0.88em; color: var(--muted);">Rent, groceries, dining, travel, subscriptions — auto-detected and sorted.</div>
-        </div>
-        <div class="card">
-          <div style="font-size: 1.6em; margin-bottom: 10px;">🔒</div>
-          <div style="font-weight: 700; margin-bottom: 6px;">100% Private</div>
-          <div style="font-size: 0.88em; color: var(--muted);">Everything runs in your browser. No server, no storage, no account needed.</div>
-        </div>
+      <div class="grid-3" style="margin-bottom:80px;">
+        <div class="card"><div style="font-size:1.6em;margin-bottom:10px;">🧠</div><div style="font-weight:700;margin-bottom:6px;">Learns Your Finances</div><div style="font-size:0.88em;color:var(--muted);">Tell it your income sources and expense categories once. It auto-classifies everything.</div></div>
+        <div class="card"><div style="font-size:1.6em;margin-bottom:10px;">📊</div><div style="font-weight:700;margin-bottom:6px;">Month-by-Month View</div><div style="font-size:0.88em;color:var(--muted);">See income and spending broken out by month with a YTD total column.</div></div>
+        <div class="card"><div style="font-size:1.6em;margin-bottom:10px;">🔒</div><div style="font-weight:700;margin-bottom:6px;">100% Private</div><div style="font-size:0.88em;color:var(--muted);">Runs entirely in your browser. Nothing leaves your device. No account needed.</div></div>
       </div>
-
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════
-       UPLOAD PAGE
-  ══════════════════════════════════════ -->
-  <div id="page-upload" class="page">
-    <div class="container" style="padding-top: 48px; padding-bottom: 80px; max-width: 620px;">
+  <!-- ══════════════════ STEP 1: PROFILE ══════════════════ -->
+  <div id="page-profile" class="page">
+    <div class="container" style="max-width:680px; padding-top:48px; padding-bottom:80px;">
 
-      <h2 style="font-family: 'Fraunces', serif; font-size: 2em; font-weight: 300; margin-bottom: 6px;">Upload your statements</h2>
-      <p style="color: var(--muted); font-size: 0.92em; margin-bottom: 36px;">All files are processed locally — nothing leaves your browser.</p>
+      <div class="steps">
+        <div class="step active"><div class="step-num">1</div><div class="step-label">About You</div></div>
+        <div class="step-line" id="line-1"></div>
+        <div class="step" id="step-2"><div class="step-num">2</div><div class="step-label">Upload</div></div>
+        <div class="step-line" id="line-2"></div>
+        <div class="step" id="step-3"><div class="step-num">3</div><div class="step-label">Report</div></div>
+      </div>
+
+      <h2 style="font-family:'Fraunces',serif; font-size:1.9em; font-weight:300; margin-bottom:6px;">Tell us about yourself</h2>
+      <p style="color:var(--muted); font-size:0.92em; margin-bottom:32px;">This helps ClearFlow automatically recognize your income and expenses.</p>
+
+      <!-- Income section -->
+      <div style="margin-bottom:32px;">
+        <div style="font-weight:700; font-size:1em; margin-bottom:6px;">💰 Income Sources</div>
+        <p style="color:var(--muted); font-size:0.85em; margin-bottom:16px;">Add each job or income source. ClearFlow will match these to deposits in your bank statement.</p>
+
+        <div id="income-entries"></div>
+
+        <button class="btn btn-secondary" style="font-size:0.85em;" onclick="addIncomeEntry()">+ Add Income Source</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Expense categories -->
+      <div style="margin-bottom:32px;">
+        <div style="font-weight:700; font-size:1em; margin-bottom:6px;">🏷️ Expense Categories</div>
+        <p style="color:var(--muted); font-size:0.85em; margin-bottom:16px;">Select categories that apply to you. ClearFlow auto-maps 1,000+ merchants to these buckets.</p>
+
+        <div class="cat-grid" id="cat-grid"></div>
+
+        <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
+          <input type="text" class="form-input" id="custom-cat-input" placeholder="Add custom category (e.g. Dog Walker)" style="max-width:280px;" onkeydown="if(event.key==='Enter')addCustomCat()" />
+          <button class="btn btn-secondary" style="font-size:0.85em; white-space:nowrap;" onclick="addCustomCat()">+ Add</button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%; justify-content:center; padding:14px;" onclick="goToUpload()">Continue to Upload →</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════ STEP 2: UPLOAD ══════════════════ -->
+  <div id="page-upload" class="page">
+    <div class="container" style="max-width:680px; padding-top:48px; padding-bottom:80px;">
+
+      <div class="steps">
+        <div class="step done"><div class="step-num">✓</div><div class="step-label">About You</div></div>
+        <div class="step-line done"></div>
+        <div class="step active"><div class="step-num">2</div><div class="step-label">Upload</div></div>
+        <div class="step-line" id="line-2b"></div>
+        <div class="step" id="step-3b"><div class="step-num">3</div><div class="step-label">Report</div></div>
+      </div>
+
+      <h2 style="font-family:'Fraunces',serif; font-size:1.9em; font-weight:300; margin-bottom:6px;">Upload your statements</h2>
+      <p style="color:var(--muted); font-size:0.92em; margin-bottom:32px;">All files are processed locally — nothing leaves your browser.</p>
 
       <div id="upload-error" class="alert alert-error"></div>
 
-      <!-- Bank -->
       <div class="form-group">
-        <label class="form-label">Bank Statement <span style="color: var(--danger);">*</span></label>
-        <span class="form-hint">US Bank, Chase, or any checking account CSV export</span>
+        <label class="form-label">Bank Statement <span style="color:var(--danger);">*</span></label>
+        <span class="form-hint">US Bank, Chase, or any checking account — CSV export</span>
         <div class="upload-zone" id="zone-bank" onclick="document.getElementById('file-bank').click()">
-          <input type="file" id="file-bank" accept=".csv" onchange="handleFileSelect('bank', this)" />
+          <input type="file" id="file-bank" accept=".csv" onchange="handleFile('bank',this)" />
           <div class="upload-icon">🏦</div>
           <div class="upload-label" id="label-bank">Click to upload bank CSV</div>
           <div class="upload-hint">CSV format</div>
         </div>
       </div>
 
-      <!-- Credit Card -->
       <div class="form-group">
-        <label class="form-label">Credit Card Statements <span style="color: var(--muted); font-weight: 400;">(optional — select multiple)</span></label>
-        <span class="form-hint">Citi, Amex (Gold/Platinum), Chase — CSV or XLSX. Select all cards at once.</span>
+        <label class="form-label">Credit Card Statements <span style="color:var(--muted); font-weight:400;">(optional)</span></label>
+        <span class="form-hint">Citi, Amex Gold, Amex Platinum, Chase — CSV or XLSX. Select multiple at once.</span>
         <div class="upload-zone" id="zone-credit" onclick="document.getElementById('file-credit').click()">
-          <input type="file" id="file-credit" accept=".csv,.xlsx,.xls" multiple onchange="handleFileSelect('credit', this)" />
+          <input type="file" id="file-credit" accept=".csv,.xlsx,.xls" multiple onchange="handleFile('credit',this)" />
           <div class="upload-icon">💳</div>
-          <div class="upload-label" id="label-credit">Click to upload credit card CSV or XLSX</div>
-          <div class="upload-hint">CSV or XLSX — select multiple files</div>
+          <div class="upload-label" id="label-credit">Click to upload credit card files</div>
+          <div class="upload-hint">CSV or XLSX — select multiple cards at once</div>
         </div>
       </div>
 
-      <!-- Venmo -->
       <div class="form-group">
-        <label class="form-label">Venmo Statements <span style="color: var(--muted); font-weight: 400;">(optional — select multiple)</span></label>
+        <label class="form-label">Venmo Statements <span style="color:var(--muted); font-weight:400;">(optional)</span></label>
         <span class="form-hint">Download from Venmo → Settings → Statements. Select all months at once.</span>
         <div class="upload-zone" id="zone-venmo" onclick="document.getElementById('file-venmo').click()">
-          <input type="file" id="file-venmo" accept=".csv" multiple onchange="handleFileSelect('venmo', this)" />
+          <input type="file" id="file-venmo" accept=".csv" multiple onchange="handleFile('venmo',this)" />
           <div class="upload-icon">💸</div>
           <div class="upload-label" id="label-venmo">Click to upload Venmo CSVs</div>
-          <div class="upload-hint">CSV format — select multiple files</div>
+          <div class="upload-hint">CSV — select multiple months</div>
         </div>
       </div>
 
-      <!-- Period -->
       <div class="form-group">
         <label class="form-label">Reporting Period</label>
-        <div style="display: flex; gap: 12px;">
+        <div style="display:flex; gap:12px;">
           <input type="date" class="form-input" id="date-from" value="2026-01-01" style="flex:1;" />
-          <input type="date" class="form-input" id="date-to" value="2026-03-31" style="flex:1;" />
+          <input type="date" class="form-input" id="date-to"   value="2026-03-31" style="flex:1;" />
         </div>
       </div>
 
-      <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px;" id="generate-btn" onclick="processFiles()">
+      <button class="btn btn-primary" style="width:100%; justify-content:center; padding:14px;" id="generate-btn" onclick="processFiles()">
         Generate My Report →
       </button>
-
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════
-       REPORT PAGE
-  ══════════════════════════════════════ -->
+  <!-- ══════════════════ STEP 3: REPORT ══════════════════ -->
   <div id="page-report" class="page">
-    <div class="container" style="padding-top: 48px; padding-bottom: 80px;">
+    <div class="container" style="padding-top:48px; padding-bottom:80px;">
 
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; flex-wrap: gap;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap; gap:16px;">
         <div>
-          <h2 style="font-family: 'Fraunces', serif; font-size: 2em; font-weight: 300;">Your Financial Report</h2>
-          <p style="color: var(--muted); font-size: 0.88em;" id="report-period">Jan 1 – Mar 31, 2026</p>
+          <h2 style="font-family:'Fraunces',serif; font-size:2em; font-weight:300;">Your Financial Report</h2>
+          <p style="color:var(--muted); font-size:0.88em;" id="report-period">—</p>
         </div>
-        <div style="display: flex; gap: 10px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="downloadCSV()">📥 Export CSV</button>
           <button class="btn btn-ghost" onclick="showPage('upload')">← New Report</button>
         </div>
       </div>
 
       <!-- Summary cards -->
-      <div class="grid-3" style="margin-bottom: 32px;" id="summary-cards">
+      <div class="grid-3" style="margin-bottom:32px;">
         <div class="card">
           <div class="card-label">YTD Income</div>
-          <div class="card-value color-pos" id="card-income">—</div>
-          <div class="card-sub" id="card-income-sub">Salary + TA + shared</div>
+          <div class="card-value num-pos" id="card-income">—</div>
+          <div class="card-sub" id="card-income-sub">Earned income</div>
         </div>
         <div class="card">
           <div class="card-label">YTD Expenses</div>
-          <div class="card-value color-neg" id="card-expenses">—</div>
-          <div class="card-sub">All categorized spending</div>
+          <div class="card-value num-neg" id="card-expenses">—</div>
+          <div class="card-sub">All spending</div>
         </div>
         <div class="card accent-card">
           <div class="card-label">Net Income</div>
@@ -168,34 +230,22 @@
 
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tab active" onclick="switchTab('spending')">Spending</button>
-        <button class="tab" onclick="switchTab('cashflow')">Cash Flow</button>
-        <button class="tab" onclick="switchTab('transactions')">All Transactions</button>
+        <button class="tab active" id="tab-btn-cashflow" onclick="switchTab('cashflow',this)">Cash Flow</button>
+        <button class="tab" id="tab-btn-spending" onclick="switchTab('spending',this)">Spending Breakdown</button>
+        <button class="tab" id="tab-btn-transactions" onclick="switchTab('transactions',this)">All Transactions</button>
       </div>
 
-      <!-- Spending tab -->
-      <div id="tab-spending">
-        <div id="spending-breakdown"></div>
-      </div>
-
-      <!-- Cash flow tab -->
-      <div id="tab-cashflow" style="display:none;">
-        <div id="cashflow-table"></div>
-      </div>
-
-      <!-- Transactions tab -->
-      <div id="tab-transactions" style="display:none;">
-        <div style="margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap;" id="filter-row"></div>
-        <div id="transactions-table"></div>
-      </div>
+      <div id="tab-cashflow"><div id="cashflow-content"></div></div>
+      <div id="tab-spending" style="display:none;"><div id="spending-content"></div></div>
+      <div id="tab-transactions" style="display:none;"><div id="transactions-content"></div></div>
 
     </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="js/merchants.js"></script>
   <script src="js/adapter.js"></script>
   <script src="js/app.js"></script>
-
 </body>
 </html>

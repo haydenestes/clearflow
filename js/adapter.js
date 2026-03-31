@@ -86,76 +86,84 @@ const PERSONAL_ACCOUNT_CLASSIFIER = {
 };
 
 /**
- * Classify a transaction by description and amount
+ * Classify a transaction using merchant rules + user profile
  */
-function classifyTransaction(date, description, amount, source = 'bank') {
+function classifyTransaction(date, description, amount, source = 'bank', profile = null) {
   const desc = description.toLowerCase().trim();
   const isExpense = amount < 0;
-  const isIncome = amount > 0;
+  const isIncome  = amount > 0;
 
-  // Special cases first
-  if (desc.includes('carolyn silk') && isExpense) {
-    return { category: 'housing', subcategory: 'rent', type: 'expense' };
+  // ── Income matching via profile keywords ──────────────────
+  if (isIncome && profile?.incomes?.length) {
+    for (const inc of profile.incomes) {
+      const kw = (inc.keyword || inc.label || '').toLowerCase();
+      if (kw && desc.includes(kw)) {
+        return { category: 'income', subcategory: inc.label || kw, type: 'income' };
+      }
+    }
   }
-  if (desc.includes('hayley carter') && isIncome) {
-    return { category: 'shared_income', subcategory: 'rent_offset', type: 'income' };
+
+  // ── Hard-coded income signals ─────────────────────────────
+  if (isIncome) {
+    if (desc.includes('kbs')) return { category: 'income', subcategory: 'salary', type: 'income' };
+    if (desc.includes('electronic deposit') || desc.includes('direct deposit')) {
+      return { category: 'income', subcategory: 'direct_deposit', type: 'income' };
+    }
+    if (desc.includes('check deposit')) return { category: 'income', subcategory: 'check', type: 'income' };
   }
-  if (desc.includes('hayley carter') && isExpense) {
-    return { category: 'shared_income', subcategory: 'rent_transfer', type: 'non-operating' };
-  }
-  if (desc.includes('funky door')) {
-    return { category: 'health_fitness', subcategory: 'gym', type: 'expense' };
-  }
-  if (desc.includes('sonic net')) {
-    return { category: 'utilities', subcategory: 'internet', type: 'expense' };
-  }
-  if (desc.includes('usbank loan') || desc.includes('car loan')) {
-    return { category: 'liabilities', subcategory: 'car_loan', type: 'expense' };
-  }
+
+  // ── Non-operating / balance-sheet items ───────────────────
   if (desc.includes('dept education') || desc.includes('student loan')) {
-    return { category: 'education', subcategory: 'student_loan_payment', type: 'non-operating' };
+    return { category: 'student_loan', subcategory: 'payment', type: 'non-operating' };
   }
-  if (desc.includes('u.s. bancorp inv') || desc.includes('web transfer to inv')) {
+  if (desc.includes('u.s. bancorp inv') || desc.includes('web transfer to inv') || desc.includes('electronic withdrawal u.s. bancorp')) {
     return { category: 'investments', subcategory: 'brokerage', type: 'non-operating' };
   }
-  if (desc.includes('transfer') || desc.includes('deposit')) {
+  if (desc.match(/funds transfer|mobile banking transfer|internet banking transfer|transfer deposit/)) {
     return { category: 'transfers', subcategory: 'internal', type: 'non-operating' };
   }
-
-  // Keyword matching for income
-  if (isIncome) {
-    if (desc.includes('kbs')) return { category: 'income', subcategory: 'employer_salary', type: 'income' };
-    if (desc.includes('uc berkeley') || desc.includes('gsi') || desc.includes('ta')) {
-      return { category: 'income', subcategory: 'employment_income', type: 'income' };
-    }
-    if (desc.includes('check deposit')) return { category: 'income', subcategory: 'other_income', type: 'income' };
-    if (desc.includes('venmo')) return { category: 'income', subcategory: 'venmo_inflows', type: 'income' };
+  if (desc.includes('autopay') && (desc.includes('amex') || desc.includes('citi') || desc.includes('chase'))) {
+    return { category: 'cc_payment', subcategory: 'autopay', type: 'non-operating' };
+  }
+  if (desc.includes('usbank loan')) {
+    return { category: 'car_loan', subcategory: 'payment', type: 'expense' };
   }
 
-  // Keyword matching for expenses
-  if (isExpense) {
-    for (const [category, catObj] of Object.entries(PERSONAL_ACCOUNT_CLASSIFIER.expenses)) {
-      for (const keyword of catObj.keywords) {
-        if (desc.includes(keyword)) {
-          return { category, subcategory: keyword, type: 'expense' };
+  // ── Merchant rules (if available) ─────────────────────────
+  if (typeof MERCHANT_RULES !== 'undefined') {
+    for (const [key, rule] of Object.entries(MERCHANT_RULES)) {
+      for (const kw of rule.keywords) {
+        if (desc.includes(kw)) {
+          return { category: key, subcategory: kw, type: isExpense ? 'expense' : isIncome ? 'income' : 'transfer' };
         }
       }
     }
+  }
 
-    // Venmo catches-all
-    if (source === 'venmo' || desc.includes('venmo')) {
-      return { category: 'entertainment', subcategory: 'social_splits', type: 'expense' };
+  // ── Fallback keyword rules ────────────────────────────────
+  if (isExpense) {
+    if (desc.includes('sonic net') || desc.includes('comcast') || desc.includes('att ') || desc.includes('verizon')) {
+      return { category: 'utilities', subcategory: 'internet_phone', type: 'expense' };
+    }
+    if (desc.includes('funky door') || desc.includes('mindbody') || desc.includes('gym')) {
+      return { category: 'fitness', subcategory: 'gym', type: 'expense' };
+    }
+    if (desc.includes('venmo')) {
+      return { category: 'entertainment', subcategory: 'social', type: 'expense' };
     }
   }
 
-  // Fallback
-  return { category: 'other', subcategory: 'uncategorized', type: isExpense ? 'expense' : isIncome ? 'income' : 'transfer' };
+  if (isIncome) {
+    return { category: 'income', subcategory: 'other', type: 'income' };
+  }
+
+  return { category: 'other', subcategory: 'uncategorized', type: isExpense ? 'expense' : isIncome ? 'income' : 'non-operating' };
 }
 
 /**
  * Parse bank statement CSV
  */
-function parseBankStatement(csv) {
+function parseBankStatement(csv, profile) {
   const lines = csv.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
   const transactions = [];
@@ -177,13 +185,8 @@ function parseBankStatement(csv) {
 
     if (!date || !amount) continue;
 
-    const classified = classifyTransaction(date, description, amount, 'bank');
-    transactions.push({
-      date,
-      description,
-      amount,
-      ...classified
-    });
+    const classified = classifyTransaction(date, description, amount, 'bank', profile);
+    transactions.push({ date, description, amount, ...classified });
   }
 
   return transactions;
@@ -351,24 +354,52 @@ function generateAccountCode(category, subcategory) {
 }
 
 /**
- * Main adapter: takes CSV strings, returns trial balance
+ * Main adapter: takes CSV strings + optional profile, returns categorized result
  */
-function adaptPersonalFinance(bankCsv, citiCsv, venmoCsvArray) {
-  const bankTxns = bankCsv ? parseBankStatement(bankCsv) : [];
-  const citiTxns = citiCsv ? parseCitiStatement(citiCsv) : [];
+function adaptPersonalFinance(bankCsv, citiCsv, venmoCsvArray, profile) {
+  const bankTxns  = bankCsv ? parseBankStatement(bankCsv, profile) : [];
+  const citiTxns  = citiCsv ? parseCitiStatement(citiCsv) : [];
   const venmoTxns = venmoCsvArray.flatMap(csv => parseVenmoStatement(csv));
 
   const allTxns = [...bankTxns, ...citiTxns, ...venmoTxns];
-  const trialBalance = aggregateToTrialBalance(allTxns);
+
+  // Build monthly breakdown
+  const monthly = {};
+  for (const t of allTxns) {
+    const dateStr = t.date || '';
+    // Normalize date to YYYY-MM-DD
+    let year, month;
+    if (dateStr.includes('/')) {
+      const parts = dateStr.split('/');
+      month = parts[0]?.padStart(2,'0');
+      year  = parts[2]?.slice(-4);
+    } else {
+      year  = dateStr.slice(0,4);
+      month = dateStr.slice(5,7);
+    }
+    if (!year || !month) continue;
+    const key = new Date(year+'-'+month+'-01').toLocaleString('en-US',{month:'short'});
+    if (!monthly[key]) monthly[key] = { income: 0, by_cat: {} };
+
+    if (t.type === 'income') {
+      monthly[key].income += t.amount;
+    } else if (t.type === 'expense') {
+      const cat = t.category || 'other';
+      monthly[key].by_cat[cat] = (monthly[key].by_cat[cat] || 0) + Math.abs(t.amount);
+    }
+  }
+
+  const totalIncome   = allTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const totalExpenses = allTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+Math.abs(t.amount),0);
 
   return {
     transactions: allTxns,
-    trial_balance: trialBalance,
+    monthly,
     summary: {
       total_transactions: allTxns.length,
-      total_income: allTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-      total_expenses: -allTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-      total_transfers: -allTxns.filter(t => t.type === 'non-operating').reduce((s, t) => s + t.amount, 0),
+      total_income: totalIncome,
+      total_expenses: totalExpenses,
+      net: totalIncome - totalExpenses,
     }
   };
 }
