@@ -31,7 +31,7 @@ const CATEGORY_LABELS = {
 };
 
 // State
-let files = { bank: null, credit: null, venmo: [] };
+let files = { bank: null, credit: [], venmo: [] };
 let lastResult = null;
 
 // ── Page nav ──────────────────────────────────────────────
@@ -43,18 +43,20 @@ function showPage(id) {
 
 // ── File handling ─────────────────────────────────────────
 function handleFileSelect(type, input) {
+  const fileList = Array.from(input.files);
+  const zone = document.getElementById('zone-' + type);
+  const label = document.getElementById('label-' + type);
+  zone.classList.add('filled');
+
   if (type === 'venmo') {
-    files.venmo = Array.from(input.files);
-    const zone = document.getElementById('zone-venmo');
-    const label = document.getElementById('label-venmo');
-    zone.classList.add('filled');
-    label.textContent = files.venmo.length + ' file(s) selected: ' + files.venmo.map(f => f.name).join(', ');
+    files.venmo = fileList;
+    label.textContent = fileList.length + ' file(s): ' + fileList.map(f => f.name).join(', ');
+  } else if (type === 'credit') {
+    files.credit = fileList;
+    label.textContent = fileList.length + ' file(s): ' + fileList.map(f => f.name).join(', ');
   } else {
-    files[type] = input.files[0];
-    const zone = document.getElementById('zone-' + type);
-    const label = document.getElementById('label-' + type);
-    zone.classList.add('filled');
-    label.textContent = '✓ ' + input.files[0].name;
+    files[type] = fileList[0];
+    label.textContent = '✓ ' + fileList[0].name;
   }
 }
 
@@ -65,6 +67,32 @@ function readFile(file) {
     reader.onerror = () => reject(new Error('Failed to read: ' + file.name));
     reader.readAsText(file);
   });
+}
+
+function readXlsxAsCSV(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        // Find the Transaction Details sheet, or use first sheet
+        const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('detail')) || wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        resolve(XLSX.utils.sheet_to_csv(ws));
+      } catch (err) {
+        reject(new Error('Failed to parse XLSX: ' + file.name));
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to read: ' + file.name));
+    reader.readAsBinaryString(file);
+  });
+}
+
+async function readAnyFile(file) {
+  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    return readXlsxAsCSV(file);
+  }
+  return readFile(file);
 }
 
 // ── Process ───────────────────────────────────────────────
@@ -84,10 +112,10 @@ async function processFiles() {
 
   try {
     const bankCsv = await readFile(files.bank);
-    const citiCsv = files.credit ? await readFile(files.credit) : '';
+    const creditCsvs = await Promise.all(files.credit.map(readAnyFile));
     const venmoCsvs = await Promise.all(files.venmo.map(readFile));
 
-    const result = PersonalFinanceAdapter.adaptPersonalFinance(bankCsv, citiCsv, venmoCsvs);
+    const result = PersonalFinanceAdapter.adaptPersonalFinance(bankCsv, creditCsvs.join('\n'), venmoCsvs);
     lastResult = result;
 
     renderReport(result);

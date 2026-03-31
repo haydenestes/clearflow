@@ -196,29 +196,43 @@ function parseCitiStatement(csv) {
   const lines = csv.trim().split('\n');
   const transactions = [];
 
-  // Skip header rows
-  for (let i = 2; i < lines.length; i++) {
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line.trim() || line.includes('Cleared')) continue;
+    if (!line.trim()) continue;
 
+    // Detect format by checking if row has "Status,Date,Description"
     const parts = line.split(',');
     if (parts.length < 5) continue;
 
-    const date = parts[1]?.trim() || '';
-    const description = parts[2]?.trim() || '';
-    const debit = parseFloat(parts[3]?.trim() || '0');
-    const credit = parseFloat(parts[4]?.trim() || '0');
-    const amount = credit - debit; // Credit is inflow, debit is outflow
+    // Amex format: Date is col 0, Description col 1, Amount col 4
+    const maybeDate = (parts[0] || '').replace(/"/g, '').trim();
+    const isAmexRow = /^\d{2}\/\d{2}\/\d{4}$/.test(maybeDate);
 
-    if (!date || !amount) continue;
+    // Citi format: Status col 0, Date col 1, Description col 2, Debit col 3, Credit col 4
+    const isCitiRow = (parts[0] || '').replace(/"/g, '').trim() === 'Cleared';
 
-    const classified = classifyTransaction(date, description, amount, 'citi');
-    transactions.push({
-      date,
-      description,
-      amount,
-      ...classified
-    });
+    if (isAmexRow) {
+      // Amex: positive = charge, negative = payment/credit
+      try {
+        const date = maybeDate;
+        const description = (parts[1] || '').replace(/"/g, '').trim();
+        const amount = parseFloat((parts[4] || '0').replace(/"/g, '').trim());
+        if (!amount || amount < 0) continue; // skip payments/credits
+        const classified = classifyTransaction(date, description, -amount, 'amex');
+        transactions.push({ date, description, amount: -amount, ...classified });
+      } catch(e) { continue; }
+    } else if (isCitiRow) {
+      try {
+        const date = (parts[1] || '').replace(/"/g, '').trim();
+        const description = (parts[2] || '').replace(/"/g, '').trim();
+        const debit = parseFloat((parts[3] || '0').replace(/"/g, '').trim() || '0');
+        const credit = parseFloat((parts[4] || '0').replace(/"/g, '').trim() || '0');
+        const amount = credit - debit;
+        if (!date || !amount) continue;
+        const classified = classifyTransaction(date, description, amount, 'citi');
+        transactions.push({ date, description, amount, ...classified });
+      } catch(e) { continue; }
+    }
   }
 
   return transactions;

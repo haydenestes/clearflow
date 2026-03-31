@@ -92,13 +92,13 @@
 
       <!-- Credit Card -->
       <div class="form-group">
-        <label class="form-label">Credit Card Statement <span style="color: var(--muted); font-weight: 400;">(optional)</span></label>
-        <span class="form-hint">Citi, Amex, Chase credit card CSV export</span>
+        <label class="form-label">Credit Card Statements <span style="color: var(--muted); font-weight: 400;">(optional — select multiple)</span></label>
+        <span class="form-hint">Citi, Amex (Gold/Platinum), Chase — CSV or XLSX. Select all cards at once.</span>
         <div class="upload-zone" id="zone-credit" onclick="document.getElementById('file-credit').click()">
-          <input type="file" id="file-credit" accept=".csv" onchange="handleFileSelect('credit', this)" />
+          <input type="file" id="file-credit" accept=".csv,.xlsx,.xls" multiple onchange="handleFileSelect('credit', this)" />
           <div class="upload-icon">💳</div>
-          <div class="upload-label" id="label-credit">Click to upload credit card CSV</div>
-          <div class="upload-hint">CSV format</div>
+          <div class="upload-label" id="label-credit">Click to upload credit card CSV or XLSX</div>
+          <div class="upload-hint">CSV or XLSX — select multiple files</div>
         </div>
       </div>
 
@@ -193,6 +193,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/adapter.js"></script>
   <script src="js/app.js"></script>
 
