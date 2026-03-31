@@ -93,10 +93,18 @@ function classifyTransaction(date, description, amount, source = 'bank', profile
   const isExpense = amount < 0;
   const isIncome  = amount > 0;
 
+  // ── Bank source income: classify all positive amounts as income unless transfer-like ──
+  if (source === 'bank' && isIncome) {
+    const transferTerms = ['transfer', 'autopay', 'epayment', 'funds transfer'];
+    if (!transferTerms.some(term => desc.includes(term))) {
+      return { category: 'income', subcategory: 'deposit', type: 'income' };
+    }
+  }
+
   // ── Income matching via profile keywords ──────────────────
   if (isIncome && profile?.incomes?.length) {
     for (const inc of profile.incomes) {
-      const kw = (inc.keyword || inc.label || '').toLowerCase();
+      const kw = (inc.label || '').toLowerCase();
       if (kw && desc.includes(kw)) {
         return { category: 'income', subcategory: inc.label || kw, type: 'income' };
       }

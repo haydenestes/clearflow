@@ -95,7 +95,9 @@
         <div class="step-line" id="line-1"></div>
         <div class="step" id="step-2"><div class="step-num">2</div><div class="step-label">Upload</div></div>
         <div class="step-line" id="line-2"></div>
-        <div class="step" id="step-3"><div class="step-num">3</div><div class="step-label">Report</div></div>
+        <div class="step" id="step-3"><div class="step-num">3</div><div class="step-label">Review</div></div>
+        <div class="step-line" id="line-3"></div>
+        <div class="step" id="step-4"><div class="step-num">4</div><div class="step-label">Report</div></div>
       </div>
 
       <h2 style="font-family:'Fraunces',serif; font-size:1.9em; font-weight:300; margin-bottom:6px;">Tell us about yourself</h2>
@@ -139,7 +141,9 @@
         <div class="step-line done"></div>
         <div class="step active"><div class="step-num">2</div><div class="step-label">Upload</div></div>
         <div class="step-line" id="line-2b"></div>
-        <div class="step" id="step-3b"><div class="step-num">3</div><div class="step-label">Report</div></div>
+        <div class="step" id="step-3b"><div class="step-num">3</div><div class="step-label">Review</div></div>
+        <div class="step-line" id="line-3b"></div>
+        <div class="step" id="step-4b"><div class="step-num">4</div><div class="step-label">Report</div></div>
       </div>
 
       <h2 style="font-family:'Fraunces',serif; font-size:1.9em; font-weight:300; margin-bottom:6px;">Upload your statements</h2>
@@ -194,7 +198,28 @@
     </div>
   </div>
 
-  <!-- ══════════════════ STEP 3: REPORT ══════════════════ -->
+  <!-- ══════════════════ STEP 3: CLARIFY ══════════════════ -->
+  <div id="page-clarify" class="page">
+    <div class="container" style="max-width:680px; padding-top:48px; padding-bottom:80px;">
+      <div class="steps">
+        <div class="step done"><div class="step-num">✓</div><div class="step-label">About You</div></div>
+        <div class="step-line done"></div>
+        <div class="step done"><div class="step-num">✓</div><div class="step-label">Upload</div></div>
+        <div class="step-line done"></div>
+        <div class="step active"><div class="step-num">3</div><div class="step-label">Review</div></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step-num">4</div><div class="step-label">Report</div></div>
+      </div>
+      <h2 style="font-family:'Fraunces',serif; font-size:1.9em; font-weight:300; margin-bottom:6px;">A few quick questions</h2>
+      <p style="color:var(--muted); font-size:0.92em; margin-bottom:32px;">Help us categorize a few transactions we weren't sure about.</p>
+      <div id="clarify-questions"></div>
+      <button class="btn btn-primary" style="width:100%; justify-content:center; padding:14px; margin-top:8px;" onclick="submitClarifications()">
+        Looks good — generate my report →
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════ STEP 4: REPORT ══════════════════ -->
   <div id="page-report" class="page">
     <div class="container" style="padding-top:48px; padding-bottom:80px;">
 

@@ -57,15 +57,9 @@ function addIncomeEntry(prefill = {}) {
   div.id = id;
   div.innerHTML = `
     <button class="remove-btn" onclick="removeEntry('${id}')" title="Remove">✕</button>
-    <div class="income-grid" style="margin-bottom:10px;">
-      <div>
-        <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Employer / Source name</label>
-        <input class="form-input" placeholder="e.g. KBS, UC Berkeley, Freelance" value="${prefill.label||''}" data-field="label" />
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Keyword in bank statement</label>
-        <input class="form-input" placeholder="e.g. KBS-OSV, BERKELEY, CLIENT" value="${prefill.keyword||''}" data-field="keyword" />
-      </div>
+    <div style="margin-bottom:10px;">
+      <label class="form-label" style="font-size:0.8em; margin-bottom:4px;">Employer / Source name</label>
+      <input class="form-input" placeholder="e.g. KBS, UC Berkeley, Freelance" value="${prefill.label||''}" data-field="label" />
     </div>
     <div class="income-grid-3">
       <div>
@@ -94,10 +88,9 @@ function collectProfile() {
   profile.incomes = [];
   document.querySelectorAll('.income-entry').forEach(entry => {
     const label   = entry.querySelector('[data-field="label"]')?.value.trim();
-    const keyword = entry.querySelector('[data-field="keyword"]')?.value.trim();
     const cadence = entry.querySelector('[data-field="cadence"]')?.value;
     const range   = entry.querySelector('[data-field="range"]')?.value;
-    if (label || keyword) profile.incomes.push({ label, keyword, cadence, range });
+    if (label) profile.incomes.push({ label, cadence, range });
   });
   profile.categories = Array.from(document.querySelectorAll('.cat-pill.selected')).map(p => p.dataset.key);
 }
@@ -204,9 +197,7 @@ async function processFiles() {
     const result = PersonalFinanceAdapter.adaptPersonalFinance(
       bankCsv, creditCsv, venmoCsvs, profile
     );
-    lastResult = result;
-    renderReport(result);
-    showPage('report');
+    showClarifyPage(result);
   } catch(e) {
     err.textContent = 'Error: ' + e.message;
     err.classList.add('show');
@@ -380,18 +371,25 @@ function renderTransactions(result) {
   const cats = getActiveCats();
   const catMap = Object.fromEntries(cats.map(c=>[c.key,c]));
 
+  const allCats = getActiveCats();
   let html = '<div style="overflow-x:auto;"><table class="report-table">';
   html += '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
-  for (const t of txns.slice(0,300)) {
+  const displayTxns = txns.slice(0,300);
+  displayTxns.forEach((t, idx) => {
     const cat   = catMap[t.category] || { icon:'•', label: t.category };
     const color = t.amount >= 0 ? 'var(--accent-dark)' : 'var(--danger)';
+    const catOptions = allCats.map(c => `<option value="${c.key}" ${t.category===c.key?'selected':''}>${c.icon||''} ${c.label}</option>`).join('');
+    const selectHtml = `<select data-txn="${idx}" onchange="changeTxnCat(${idx}, this.value, this)" style="margin-top:4px; font-size:0.8em; border:1px solid var(--border); border-radius:4px; padding:3px 6px; background:white; max-width:180px;">
+      ${catOptions}
+      <option value="__add__">➕ Add new category...</option>
+    </select>`;
     html += `<tr>
       <td style="color:var(--muted);white-space:nowrap;">${t.date}</td>
       <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.description}</td>
-      <td><span class="badge" style="background:var(--accent-light);color:var(--accent-dark);">${cat.icon||''} ${cat.label||t.category}</span></td>
+      <td><span class="badge" style="background:var(--accent-light);color:var(--accent-dark);">${cat.icon||''} ${cat.label||t.category}</span>${selectHtml}</td>
       <td style="text-align:right;color:${color};font-weight:600;">${t.amount>=0?'+':'–'}${fmt(t.amount)}</td>
     </tr>`;
-  }
+  });
   if (txns.length > 300) html += `<tr><td colspan="4" style="color:var(--muted);font-size:0.82em;padding:10px;">Showing 300 of ${txns.length}. Export CSV for full list.</td></tr>`;
   html += '</tbody></table></div>';
   document.getElementById('transactions-content').innerHTML = html;
@@ -411,6 +409,177 @@ function getActiveCats() {
   const base  = DEFAULT_CATS.filter(c => selected.includes(c.key));
   const custom = profile.customCats || [];
   return [...base, ...custom];
+}
+
+// ── Clarifying questions ───────────────────────────────────
+function generateClarifyingQuestions(transactions) {
+  const questions = [];
+  const posBank = transactions.filter(t => t.amount > 0 && t.type !== 'non-operating' && !t.description.toLowerCase().includes('transfer'));
+
+  // Flag large one-off deposits
+  const largeSingle = posBank.filter(t => t.amount >= 5000 && !isRecurring(t.description, transactions));
+  largeSingle.forEach(t => {
+    questions.push({
+      id: 'large_' + t.date,
+      text: `We found a large deposit of $${t.amount.toFixed(2)} on ${t.date} (${t.description.trim().slice(0,40)}). What was this?`,
+      type: 'radio',
+      options: ['Paycheck / Salary', 'Gift', 'Bonus', 'Loan', 'Sale / Reimbursement', 'Other'],
+      txn_ids: [t.date + '_' + t.description],
+      cat_map: { 'Paycheck / Salary': 'income', 'Gift': 'gift', 'Bonus': 'income', 'Loan': 'non-operating', 'Sale / Reimbursement': 'income', 'Other': 'income' }
+    });
+  });
+
+  // Flag recurring payees that look like rent
+  const rentCandidates = transactions.filter(t => t.amount < -1000 && t.amount > -5000 && !['rent','housing'].includes(t.category));
+  const rentMap = {};
+  rentCandidates.forEach(t => { rentMap[t.description] = (rentMap[t.description]||0)+1; });
+  Object.entries(rentMap).filter(([,c])=>c>=2).forEach(([desc, count]) => {
+    const sample = rentCandidates.find(t=>t.description===desc);
+    questions.push({
+      id: 'rent_' + desc.slice(0,20),
+      text: `We found ${count} payments to "${desc.trim().slice(0,40)}" of $${Math.abs(sample.amount).toFixed(2)}. Is this your rent?`,
+      type: 'radio',
+      options: ['Yes, this is rent', 'No, something else'],
+      txn_ids: rentCandidates.filter(t=>t.description===desc).map(t=>t.date+'_'+t.description),
+      cat_map: { 'Yes, this is rent': 'rent', 'No, something else': null }
+    });
+  });
+
+  // Flag large uncategorized expenses
+  const uncatLarge = transactions.filter(t => t.amount < -200 && t.category === 'other');
+  if (uncatLarge.length > 0) {
+    questions.push({
+      id: 'uncat',
+      text: `We found ${uncatLarge.length} transactions we couldn't categorize (over $200 each). Would you like to review them?`,
+      type: 'radio',
+      options: ['Yes, show me', 'No, skip'],
+      show_if_yes: uncatLarge.slice(0,5).map(t => `${t.date}: ${t.description.slice(0,40)} — $${Math.abs(t.amount).toFixed(2)}`),
+      txn_ids: []
+    });
+  }
+
+  return questions.slice(0, 6); // cap at 6 questions
+}
+
+function isRecurring(desc, transactions) {
+  return transactions.filter(t => t.description === desc).length > 1;
+}
+
+function showClarifyPage(result) {
+  lastResult = result;
+  const questions = generateClarifyingQuestions(result.transactions);
+
+  if (questions.length === 0) {
+    // No questions — go straight to report
+    renderReport(result);
+    showPage('report');
+    return;
+  }
+
+  const container = document.getElementById('clarify-questions');
+  container.innerHTML = '';
+
+  questions.forEach((q, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '16px';
+    card.innerHTML = `
+      <div style="font-weight:600; margin-bottom:12px; font-size:0.95em;">${q.text}</div>
+      ${q.type === 'radio' ? q.options.map((opt,j) => `
+        <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer; font-size:0.9em;">
+          <input type="radio" name="q_${i}" value="${opt}" style="accent-color:var(--accent);" />
+          ${opt}
+        </label>`).join('') : `<input class="form-input" name="q_${i}" placeholder="Your answer..." />`}
+      ${q.show_if_yes ? `<div id="detail_${i}" style="display:none; background:var(--bg2); border-radius:6px; padding:12px; margin-top:10px; font-size:0.82em; color:var(--muted);">${q.show_if_yes.join('<br>')}</div>` : ''}
+    `;
+    // Show detail if "Yes" selected
+    if (q.show_if_yes) {
+      card.querySelectorAll('input[type=radio]').forEach(r => {
+        r.addEventListener('change', () => {
+          const detail = card.querySelector('#detail_' + i);
+          if (detail) detail.style.display = r.value.startsWith('Yes') ? 'block' : 'none';
+        });
+      });
+    }
+    container.appendChild(card);
+  });
+
+  // Store questions for submission
+  window._clarifyQuestions = questions;
+  showPage('clarify');
+}
+
+function submitClarifications() {
+  const questions = window._clarifyQuestions || [];
+  questions.forEach((q, i) => {
+    const selected = document.querySelector(`input[name="q_${i}"]:checked`);
+    const answer = selected ? selected.value : null;
+    if (!answer || !q.cat_map) return;
+    const newCat = q.cat_map[answer];
+    if (!newCat || !q.txn_ids) return;
+    // Apply to matching transactions
+    lastResult.transactions.forEach(t => {
+      if (q.txn_ids.includes(t.date + '_' + t.description)) {
+        t.category = newCat;
+        if (newCat !== 'non-operating') t.type = newCat === 'income' ? 'income' : 'expense';
+      }
+    });
+  });
+  // Rebuild monthly from updated transactions
+  lastResult = rebuildMonthly(lastResult);
+  renderReport(lastResult);
+  showPage('report');
+}
+
+function rebuildMonthly(result) {
+  const monthly = {};
+  for (const t of result.transactions) {
+    const dateStr = t.date || '';
+    let year, month;
+    if (dateStr.includes('/')) { const p = dateStr.split('/'); month = p[0]?.padStart(2,'0'); year = p[2]?.slice(-4); }
+    else { year = dateStr.slice(0,4); month = dateStr.slice(5,7); }
+    if (!year || !month) continue;
+    const key = new Date(year+'-'+month+'-01').toLocaleString('en-US',{month:'short'});
+    if (!monthly[key]) monthly[key] = { income: 0, by_cat: {} };
+    if (t.type === 'income') monthly[key].income += t.amount;
+    else if (t.type === 'expense') {
+      const cat = t.category || 'other';
+      monthly[key].by_cat[cat] = (monthly[key].by_cat[cat]||0) + Math.abs(t.amount);
+    }
+  }
+  const totalIncome = result.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const totalExpenses = result.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Math.abs(t.amount),0);
+  return { ...result, monthly, summary: { ...result.summary, total_income: totalIncome, total_expenses: totalExpenses, net: totalIncome-totalExpenses }};
+}
+
+// ── Category change on transactions ───────────────────────
+function changeTxnCat(idx, value, selectEl) {
+  if (value === '__add__') {
+    const newCat = prompt('Enter new category name:');
+    if (!newCat) { selectEl.value = lastResult.transactions[idx].category; return; }
+    const key = newCat.toLowerCase().replace(/\s+/g,'_');
+    profile.customCats.push({ key, label: newCat, icon: '📋', color: '#888', keywords: [] });
+    // add option to all selects
+    document.querySelectorAll('select[data-txn]').forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = key; opt.textContent = '📋 ' + newCat;
+      s.insertBefore(opt, s.lastElementChild);
+    });
+    selectEl.value = key;
+    value = key;
+  }
+  lastResult.transactions[idx].category = value;
+  lastResult.transactions[idx].type = ['income','gift'].includes(value) ? 'income' : value === 'non-operating' ? 'non-operating' : 'expense';
+  lastResult = rebuildMonthly(lastResult);
+  // Re-render cash flow and spending (not transactions, to preserve scroll)
+  renderCashFlow(lastResult);
+  renderSpending(lastResult);
+  // Update summary cards
+  const s = lastResult.summary;
+  document.getElementById('card-income').textContent = fmt(s.total_income);
+  document.getElementById('card-expenses').textContent = fmt(s.total_expenses);
+  const net = s.net;
+  document.getElementById('card-net').textContent = fmtN(net);
 }
 
 function downloadCSV() {
