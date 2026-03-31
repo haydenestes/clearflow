@@ -14,7 +14,13 @@ let files = { bank: null, credit: [], venmo: [] };
 let lastResult = null;
 let reportMonths = [];
 
-// ── Default categories ─────────────────────────────────────
+// ── Income categories (shown in dropdown but not as expense pills) ──
+const INCOME_CATS = [
+  { key:'income',        label:'Income / Paycheck',     icon:'💰' },
+  { key:'gift',          label:'Gift / Reimbursement',  icon:'🎁' },
+];
+
+// ── Default expense categories ─────────────────────────────
 const DEFAULT_CATS = [
   { key:'rent',          label:'Rent / Mortgage',       icon:'🏠' },
   { key:'groceries',     label:'Groceries',              icon:'🛒' },
@@ -368,10 +374,8 @@ function renderTransactions(result) {
     document.getElementById('transactions-content').innerHTML = '<p style="color:var(--muted);padding:20px 0;">Upload statements to see transactions.</p>';
     return;
   }
-  const cats = getActiveCats();
-  const catMap = Object.fromEntries(cats.map(c=>[c.key,c]));
-
-  const allCats = getActiveCats();
+  const allCats = [...INCOME_CATS, ...getActiveCats()];
+  const catMap = Object.fromEntries(allCats.map(c=>[c.key,c]));
   let html = '<div style="overflow-x:auto;"><table class="report-table">';
   html += '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
   const displayTxns = txns.slice(0,300);
