@@ -59,6 +59,10 @@
     <div class="nav-links">
       <a href="#" onclick="showPage('profile'); return false;">New Report</a>
       <a href="https://github.com/haydenestes/clearflow" target="_blank">GitHub</a>
+      <span id="auth-user-label" style="font-size:0.82em; color:var(--muted);"></span>
+      <span id="sync-status" style="font-size:0.78em; color:var(--accent); opacity:0; transition:opacity 0.4s;"></span>
+      <button id="auth-signin-btn" class="btn btn-secondary" style="padding:7px 16px; font-size:0.82em;" onclick="ClearFlowAuth.showAuthModal('signin')">Sign in</button>
+      <button id="auth-signout-btn" class="btn btn-ghost" style="display:none; padding:7px 16px; font-size:0.82em;" onclick="ClearFlowAuth.signOut()">Sign out</button>
     </div>
   </nav>
 
@@ -128,7 +132,10 @@
         </div>
       </div>
 
-      <button class="btn btn-primary" style="width:100%; justify-content:center; padding:14px;" onclick="goToUpload()">Continue to Upload →</button>
+      <div style="display:flex; gap:12px;">
+        <button class="btn btn-primary" style="flex:1; justify-content:center; padding:14px;" onclick="goToUpload()">Continue to Upload →</button>
+        <button class="btn btn-secondary" style="padding:14px 20px;" onclick="ClearFlowAuth.saveProfile()" title="Save profile to your account">💾 Save</button>
+      </div>
     </div>
   </div>
 
@@ -267,10 +274,35 @@
     </div>
   </div>
 
+  <!-- Auth modal -->
+  <div id="auth-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:white; border-radius:12px; padding:36px; max-width:420px; width:100%; position:relative;">
+      <button onclick="ClearFlowAuth.hideAuthModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--muted);">✕</button>
+      <h3 id="auth-modal-title" style="font-family:'Fraunces',serif; font-size:1.5em; font-weight:300; margin-bottom:6px;">Sign in to ClearFlow</h3>
+      <p style="color:var(--muted); font-size:0.85em; margin-bottom:24px;">Your profile and preferences will be saved across sessions.</p>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" id="auth-email" class="form-input" placeholder="you@example.com" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="auth-password" class="form-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')ClearFlowAuth.submitAuth()" />
+      </div>
+      <div id="auth-error" style="color:var(--danger); font-size:0.85em; margin-bottom:12px; min-height:18px;"></div>
+      <button id="auth-submit-btn" class="btn btn-primary" style="width:100%; justify-content:center;" onclick="ClearFlowAuth.submitAuth()">Sign in</button>
+      <div style="text-align:center; margin-top:14px;">
+        <a href="#" id="auth-modal-toggle" style="font-size:0.82em; color:var(--accent); text-decoration:none;" onclick="ClearFlowAuth.toggleAuthMode(); return false;">Don't have an account? Sign up</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/merchants.js"></script>
   <script src="js/adapter.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/auth.js"></script>
+  <script>ClearFlowAuth.initAuth();</script>
 </body>
 </html>
