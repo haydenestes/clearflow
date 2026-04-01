@@ -456,7 +456,8 @@ function renderTransactions(result) {
   const catMap = Object.fromEntries(allCats.map(c=>[c.key,c]));
   let html = '<div style="overflow-x:auto;"><table class="report-table">';
   html += '<thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
-  const displayTxns = txns.slice(0,300);
+  const showAll = window._showAllTxns || false;
+  const displayTxns = showAll ? txns : txns.slice(0, 300);
   displayTxns.forEach((t, idx) => {
     const cat   = catMap[t.category] || { icon:'•', label: t.category };
     const color = t.amount >= 0 ? 'var(--accent-dark)' : 'var(--danger)';
@@ -474,7 +475,19 @@ function renderTransactions(result) {
       <td style="text-align:right;color:${color};font-weight:600;white-space:nowrap;">${t.amount>=0?'+':'–'}${fmt(t.amount)}</td>
     </tr>`;
   });
-  if (txns.length > 300) html += `<tr><td colspan="5" style="color:var(--muted);font-size:0.82em;padding:10px;">Showing 300 of ${txns.length}. Export CSV for full list.</td></tr>`;
+  if (txns.length > 300 && !showAll) {
+    html += `<tr><td colspan="5" style="padding:12px; font-size:0.85em;">
+      Showing 300 of ${txns.length}. 
+      <a href="#" onclick="window._showAllTxns=true; renderTransactions(lastResult); return false;" style="color:var(--accent);">Show all ${txns.length}</a>
+      &nbsp;|&nbsp;
+      <a href="#" onclick="exportCSV()" style="color:var(--accent);">Export CSV</a>
+    </td></tr>`;
+  } else if (showAll && txns.length > 300) {
+    html += `<tr><td colspan="5" style="padding:12px; font-size:0.85em;">
+      Showing all ${txns.length} transactions.
+      <a href="#" onclick="window._showAllTxns=false; renderTransactions(lastResult); return false;" style="color:var(--accent);">Collapse</a>
+    </td></tr>`;
+  }
   html += '</tbody></table></div>';
   document.getElementById('transactions-content').innerHTML = html;
 }
