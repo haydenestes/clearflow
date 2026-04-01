@@ -130,6 +130,16 @@ function classifyTransaction(date, description, amount, source = 'bank', profile
   if (desc.match(/funds transfer|mobile banking transfer|internet banking transfer|transfer deposit/)) {
     return { category: 'transfers', subcategory: 'internal', type: 'non-operating' };
   }
+  // Bank maintenance fees that net to zero → non-operating (noise, excluded from P&L)
+  if (desc.includes('monthly maintenance fee')) {
+    return { category: 'bank_fee', subcategory: 'maintenance_fee', type: 'non-operating' };
+  }
+
+  // Interest paid (usually pennies) → non-operating
+  if (desc.includes('interest paid this period')) {
+    return { category: 'bank_fee', subcategory: 'interest', type: 'non-operating' };
+  }
+
   // Credit card payments from bank → non-operating (balance sheet transfer, not an expense)
   // The real expenses are the individual line items on the credit card statement
   if (
