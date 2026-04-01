@@ -24,6 +24,7 @@ async function initAuth() {
 
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
+    window._currentUser = currentUser;
     updateAuthUI();
     if (currentUser) loadProfile();
   });
@@ -111,8 +112,20 @@ async function loadProfile() {
   if (data.categories?.length)  profile.categories  = data.categories;
   if (data.custom_cats?.length) profile.customCats  = data.custom_cats;
 
-  // Re-render profile form
+  // Load saved transactions and render report directly if present
+  if (data.transactions?.length) {
+    const txns = data.transactions;
+    const result = buildResultFromTransactions(txns);
+    lastResult = result;
+    renderReport(result);
+    showPage('report');
+    showSyncStatus('Loaded your data ✓');
+    return;
+  }
+
+  // No transactions yet — rebuild profile form and go to upload
   rebuildProfileForm();
+  showPage('upload');
   showSyncStatus('Profile loaded ✓');
 }
 
@@ -129,6 +142,30 @@ async function saveProfile() {
   });
   if (error) { console.error('Save error:', error); return; }
   showSyncStatus('Saved ✓');
+}
+
+async function saveTransactions(transactions) {
+  if (!currentUser) return;
+  const sb = getSupabase();
+
+  // Load existing transactions first
+  const { data } = await sb.from('clearflow_profiles').select('transactions').eq('id', currentUser.id).single();
+  const existing = data?.transactions || [];
+
+  // Merge: deduplicate by date+description+amount+account
+  const key = t => `${t.date}|${t.description}|${t.amount}|${t.account||''}`;
+  const existingKeys = new Set(existing.map(key));
+  const newOnly = transactions.filter(t => !existingKeys.has(key(t)));
+  const merged = [...existing, ...newOnly];
+
+  const { error } = await sb.from('clearflow_profiles').upsert({
+    id: currentUser.id,
+    transactions: merged,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) { console.error('Save transactions error:', error); return; }
+  showSyncStatus(`Saved ${newOnly.length} new transactions ✓`);
+  return merged;
 }
 
 function showSyncStatus(msg) {
@@ -168,5 +205,5 @@ function scheduleSave() {
 // Export
 window.MoneyMapAuth = {
   initAuth, showAuthModal, hideAuthModal, toggleAuthMode,
-  submitAuth, signOut, saveProfile, scheduleSave
+  submitAuth, signOut, saveProfile, scheduleSave, saveTransactions
 };

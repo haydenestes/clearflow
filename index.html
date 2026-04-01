@@ -57,7 +57,7 @@
       <span class="logo-dot"></span> MoneyMap
     </a>
     <div class="nav-links">
-      <a href="#" onclick="showPage('profile'); return false;">New Report</a>
+      <a href="#" onclick="window._currentUser ? showPage('upload') : showPage('profile'); return false;">Upload</a>
       <a href="https://github.com/haydenestes/clearflow" target="_blank">GitHub</a>
       <span id="auth-user-label" style="font-size:0.82em; color:var(--muted);"></span>
       <span id="sync-status" style="font-size:0.78em; color:var(--accent); opacity:0; transition:opacity 0.4s;"></span>
@@ -237,7 +237,8 @@
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="downloadCSV()">📥 Export CSV</button>
-          <button class="btn btn-ghost" onclick="showPage('upload')">← New Report</button>
+          <button class="btn btn-ghost" onclick="showPage('upload')">← Add Statements</button>
+          <button class="btn btn-ghost" onclick="showPage('profile')" style="margin-left:8px;">⚙ Edit Profile</button>
         </div>
       </div>
 

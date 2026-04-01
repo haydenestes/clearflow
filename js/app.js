@@ -198,14 +198,26 @@ async function processFiles() {
   btn.textContent = 'Processing…'; btn.disabled = true;
 
   try {
-    const bankCsv   = await readFileText(files.bank);
-    const creditCsv = (await Promise.all(files.credit.map(readAny))).join('\n');
-    const venmoCsvs = await Promise.all(files.venmo.map(readFileText));
+    const bankCsv   = files.bank ? await readFileText(files.bank) : '';
+    const creditCsv = files.credit.length ? (await Promise.all(files.credit.map(readAny))).join('\n') : '';
+    const venmoCsvs = files.venmo.length ? await Promise.all(files.venmo.map(readFileText)) : [];
 
-    const result = PersonalFinanceAdapter.adaptPersonalFinance(
+    const newResult = PersonalFinanceAdapter.adaptPersonalFinance(
       bankCsv, creditCsv, venmoCsvs, profile
     );
-    showClarifyPage(result);
+
+    // If logged in, merge with existing saved transactions
+    if (typeof MoneyMapAuth !== 'undefined' && window._currentUser) {
+      const merged = await MoneyMapAuth.saveTransactions(newResult.transactions);
+      if (merged) {
+        const mergedResult = buildResultFromTransactions(merged);
+        lastResult = mergedResult;
+        showClarifyPage(mergedResult);
+        return;
+      }
+    }
+
+    showClarifyPage(newResult);
   } catch(e) {
     err.textContent = 'Error: ' + e.message;
     err.classList.add('show');
@@ -601,6 +613,14 @@ function submitClarifications() {
   lastResult = rebuildMonthly(lastResult);
   renderReport(lastResult);
   showPage('report');
+}
+
+function buildResultFromTransactions(transactions) {
+  // Build a full result object from a flat transaction array
+  const income = transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expenses = transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Math.abs(t.amount),0);
+  const partial = { transactions, summary: { total_income: income, total_expenses: expenses, net: income - expenses }, monthly: {} };
+  return rebuildMonthly(partial);
 }
 
 function rebuildMonthly(result) {
