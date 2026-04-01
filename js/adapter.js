@@ -130,8 +130,19 @@ function classifyTransaction(date, description, amount, source = 'bank', profile
   if (desc.match(/funds transfer|mobile banking transfer|internet banking transfer|transfer deposit/)) {
     return { category: 'transfers', subcategory: 'internal', type: 'non-operating' };
   }
-  if (desc.includes('autopay') && (desc.includes('amex') || desc.includes('citi') || desc.includes('chase'))) {
-    return { category: 'cc_payment', subcategory: 'autopay', type: 'non-operating' };
+  // Credit card payments from bank → non-operating (balance sheet transfer, not an expense)
+  // The real expenses are the individual line items on the credit card statement
+  if (
+    desc.includes('amex epayment') ||
+    desc.includes('amex payment') ||
+    desc.includes('citi autopay') ||
+    desc.includes('chase credit crd') ||
+    desc.includes('chase autopay') ||
+    (desc.includes('autopay') && (desc.includes('amex') || desc.includes('citi') || desc.includes('chase'))) ||
+    desc.includes('web authorized pmt amex') ||
+    desc.includes('web authorized pmt citi')
+  ) {
+    return { category: 'cc_payment', subcategory: 'credit_card_payoff', type: 'non-operating' };
   }
   if (desc.includes('usbank loan')) {
     return { category: 'car_loan', subcategory: 'payment', type: 'expense' };
