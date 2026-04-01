@@ -257,6 +257,66 @@ function renderReport(result) {
   renderTransactions(result);
 }
 
+// ── Drill-down modal ───────────────────────────────────────
+function showDrillDown(category, month) {
+  let txns = (lastResult?.transactions || []);
+  
+  // Filter by category type
+  if (category === 'income') {
+    txns = txns.filter(t => t.type === 'income');
+  } else {
+    txns = txns.filter(t => t.type === 'expense' && t.category === category);
+  }
+  
+  // Filter by month (unless YTD)
+  if (month !== 'YTD') {
+    txns = txns.filter(t => getMonthLabel(t.date) === month);
+  }
+
+  const modal = document.getElementById('drilldown-modal');
+  const title = document.getElementById('drilldown-title');
+  const list  = document.getElementById('drilldown-list');
+
+  const catObj = category === 'income' ? {label: 'Income'} : getActiveCats().find(c=>c.key===category) || {label: category};
+  title.textContent = `${catObj.label} — ${month}`;
+
+  let html = '';
+  if (txns.length === 0) {
+    html = '<p style="color:var(--muted);">No transactions for this period.</p>';
+  } else {
+    const total = txns.reduce((s,t)=>s+Math.abs(t.amount),0);
+    html = `<div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <span style="font-weight:600;">Total</span>
+        <span style="font-weight:600; color:var(--accent-dark);">${fmt(total)}</span>
+      </div>
+    </div>`;
+    html += txns.map(t => `
+      <div style="display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--bg2); font-size:0.9em;">
+        <div style="flex:1; overflow:hidden;">
+          <div style="font-weight:500;">${t.date}</div>
+          <div style="color:var(--muted); font-size:0.85em;">${t.description.slice(0,50)}</div>
+          <div style="color:var(--muted); font-size:0.78em;">${t.account || '—'}</div>
+        </div>
+        <div style="text-align:right; white-space:nowrap;">
+          <div style="font-weight:600;">${fmt(Math.abs(t.amount))}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+  list.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function closeDrillDown() {
+  document.getElementById('drilldown-modal').style.display = 'none';
+}
+
+function getMonthLabel(date) {
+  const [year, month] = date.split('-');
+  return new Date(parseInt(year), parseInt(month)-1, 1).toLocaleString('en-US',{month:'short'});
+}
+
 // ── Cash flow table ────────────────────────────────────────
 function renderCashFlow(result) {
   const months  = Object.keys(result.monthly || {});
@@ -286,9 +346,11 @@ function renderCashFlow(result) {
   html += '<td>Total Income</td>';
   months.forEach(m => {
     const v = monthly[m]?.income || 0;
-    html += `<td class="num-pos">${fmt(v)}</td>`;
+    const cell = v > 0 ? `<td class="num-pos" style="cursor:pointer;" onclick="showDrillDown('income','${m}')">${fmt(v)}</td>` : `<td class="num-zero">—</td>`;
+    html += cell;
   });
-  html += `<td class="num-pos" style="background:var(--bg2);">${fmt(ytdIncome)}</td>`;
+  const incomeCell = ytdIncome > 0 ? `<td class="num-pos" style="background:var(--bg2); cursor:pointer;" onclick="showDrillDown('income','YTD')">${fmt(ytdIncome)}</td>` : `<td style="background:var(--bg2);">—</td>`;
+  html += incomeCell;
   html += '</tr>';
 
   // Expenses section
@@ -300,9 +362,11 @@ function renderCashFlow(result) {
     html += `<td>${cat.icon} ${cat.label}</td>`;
     months.forEach(m => {
       const v = monthly[m]?.by_cat?.[cat.key] || 0;
-      html += v > 0 ? `<td class="num-neg">${fmt(v)}</td>` : `<td class="num-zero">—</td>`;
+      const cell = v > 0 ? `<td class="num-neg" style="cursor:pointer;" onclick="showDrillDown('${cat.key}','${m}')">${fmt(v)}</td>` : `<td class="num-zero">—</td>`;
+      html += cell;
     });
-    html += `<td class="num-neg" style="background:var(--bg2);">${ytdByCat[cat.key]>0?fmt(ytdByCat[cat.key]):'—'}</td>`;
+    const ytdCell = ytdByCat[cat.key] > 0 ? `<td class="num-neg" style="background:var(--bg2); cursor:pointer;" onclick="showDrillDown('${cat.key}','YTD')">${fmt(ytdByCat[cat.key])}</td>` : `<td style="background:var(--bg2);">—</td>`;
+    html += ytdCell;
     html += '</tr>';
   });
 
