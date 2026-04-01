@@ -17,7 +17,9 @@ let reportMonths = [];
 // ── Income categories (shown in dropdown but not as expense pills) ──
 const INCOME_CATS = [
   { key:'income',        label:'Income / Paycheck',     icon:'💰' },
-  { key:'gift',          label:'Gift / Reimbursement',  icon:'🎁' },
+  { key:'gift',          label:'Gift',                  icon:'🎁' },
+  { key:'reimbursement', label:'Misc Reimbursement',    icon:'🔄' },
+  { key:'rent_offset',   label:'Rent Offset (Hayley)',  icon:'🏠' },
 ];
 
 // ── Default expense categories ─────────────────────────────
@@ -611,10 +613,23 @@ function rebuildMonthly(result) {
     if (!year || !month) continue;
     const key = new Date(parseInt(year), parseInt(month)-1, 1).toLocaleString('en-US',{month:'short'});
     if (!monthly[key]) monthly[key] = { income: 0, by_cat: {} };
-    if (t.type === 'income') monthly[key].income += t.amount;
-    else if (t.type === 'expense') {
+    if (t.type === 'income') {
+      monthly[key].income += t.amount;
+    } else if (t.type === 'rent_offset') {
+      // Hayley's Venmo rent payments → reduce rent expense
+      monthly[key].by_cat['rent'] = (monthly[key].by_cat['rent']||0) - Math.abs(t.amount);
+    } else if (t.type === 'reimbursement') {
+      // Misc Venmo inflows → reduce 'other' expenses
+      monthly[key].by_cat['other'] = (monthly[key].by_cat['other']||0) - Math.abs(t.amount);
+    } else if (t.type === 'expense') {
       const cat = t.category || 'other';
       monthly[key].by_cat[cat] = (monthly[key].by_cat[cat]||0) + Math.abs(t.amount);
+    }
+  }
+  // Floor all category values at 0 (offsets can't make a category negative)
+  for (const m of Object.values(monthly)) {
+    for (const cat of Object.keys(m.by_cat)) {
+      m.by_cat[cat] = Math.max(0, m.by_cat[cat]);
     }
   }
   const totalIncome = result.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);

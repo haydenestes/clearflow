@@ -140,6 +140,11 @@ function classifyTransaction(date, description, amount, source = 'bank', profile
     return { category: 'bank_fee', subcategory: 'interest', type: 'non-operating' };
   }
 
+  // Venmo on bank statement → non-operating (real transactions are in the Venmo CSV)
+  if (source === 'bank' && desc.includes('venmo')) {
+    return { category: 'venmo_transfer', subcategory: 'venmo', type: 'non-operating' };
+  }
+
   // Credit card payments from bank → non-operating (balance sheet transfer, not an expense)
   // The real expenses are the individual line items on the credit card statement
   if (
@@ -324,8 +329,31 @@ function parseVenmoStatement(csv) {
 
     const finalAmount = isInflow ? Math.abs(parseFloat(amount)) : -Math.abs(parseFloat(amount));
     const date = datetime.split('T')[0];
+    const noteLower = note.toLowerCase();
+    const sender = (parts[3]?.trim().replace(/"/g, '') || '').toLowerCase();
 
-    const classified = classifyTransaction(date, note, finalAmount, 'venmo');
+    let classified;
+
+    if (isInflow) {
+      // Rent payments from Hayley → reduce rent category (not income)
+      const isHayleyRent = (
+        sender.includes('hayley') ||
+        noteLower.includes('hayley') ||
+        noteLower.includes('rent') ||
+        noteLower.includes('hayleycarter')
+      ) && finalAmount >= 500;
+
+      if (isHayleyRent) {
+        classified = { category: 'rent', subcategory: 'rent_offset', type: 'rent_offset' };
+      } else {
+        // Other inflows → misc reimbursement (not income, just offsetting an expense)
+        classified = { category: 'reimbursement', subcategory: 'venmo_inflow', type: 'reimbursement' };
+      }
+    } else {
+      // Outflows → classify as expenses normally
+      classified = classifyTransaction(date, note, finalAmount, 'venmo');
+    }
+
     transactions.push({
       date,
       description: note,
