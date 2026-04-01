@@ -407,7 +407,8 @@ function adaptPersonalFinance(bankCsv, citiCsv, venmoCsvArray, profile) {
       month = dateStr.slice(5,7);
     }
     if (!year || !month) continue;
-    const key = new Date(year+'-'+month+'-01').toLocaleString('en-US',{month:'short'});
+    // Use local date constructor (not string) to avoid UTC→local timezone rollback
+    const key = new Date(parseInt(year), parseInt(month)-1, 1).toLocaleString('en-US',{month:'short'});
     if (!monthly[key]) monthly[key] = { income: 0, by_cat: {} };
 
     if (t.type === 'income') {

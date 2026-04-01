@@ -244,7 +244,7 @@ function renderReport(result) {
   document.getElementById('card-expenses').textContent = fmt(summary.total_expenses);
   const net = summary.net || (summary.total_income - summary.total_expenses);
   document.getElementById('card-net').textContent      = fmtN(net);
-  document.getElementById('card-net-sub').textContent  = net >= 0 ? 'You came out ahead 🎉' : 'Expenses exceeded income';
+  document.getElementById('card-net-sub').textContent  = net > 0 ? 'You came out ahead 🎉' : net < 0 ? 'Expenses exceeded income' : 'Break even';
 
   const months = Object.keys(result.monthly || {});
   reportMonths = months;
@@ -543,7 +543,7 @@ function rebuildMonthly(result) {
     if (dateStr.includes('/')) { const p = dateStr.split('/'); month = p[0]?.padStart(2,'0'); year = p[2]?.slice(-4); }
     else { year = dateStr.slice(0,4); month = dateStr.slice(5,7); }
     if (!year || !month) continue;
-    const key = new Date(year+'-'+month+'-01').toLocaleString('en-US',{month:'short'});
+    const key = new Date(parseInt(year), parseInt(month)-1, 1).toLocaleString('en-US',{month:'short'});
     if (!monthly[key]) monthly[key] = { income: 0, by_cat: {} };
     if (t.type === 'income') monthly[key].income += t.amount;
     else if (t.type === 'expense') {
