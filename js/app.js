@@ -1,5 +1,5 @@
 /**
- * ClearFlow — App Controller v2
+ * MoneyMap — App Controller v2
  * Profile → Upload → Report flow
  */
 
@@ -661,7 +661,7 @@ function downloadCSV() {
     lastResult.transactions.map(t=>`"${t.date}","${t.description}","${t.account||''}",${t.amount},"${t.category}","${t.type}"`).join('\n');
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})),
-    download: 'clearflow-transactions.csv',
+    download: 'moneymap-transactions.csv',
   });
   a.click();
 }

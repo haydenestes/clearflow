@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClearFlow — Personal Finance</title>
+  <title>MoneyMap — Personal Finance</title>
   <meta name="description" content="Upload your bank, credit, and Venmo statements. Get a clean monthly breakdown of your income and spending." />
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Nunito+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
@@ -54,15 +54,15 @@
   <!-- NAV -->
   <nav class="nav">
     <a href="#" class="logo" onclick="showPage('landing'); return false;">
-      <span class="logo-dot"></span> ClearFlow
+      <span class="logo-dot"></span> MoneyMap
     </a>
     <div class="nav-links">
       <a href="#" onclick="showPage('profile'); return false;">New Report</a>
       <a href="https://github.com/haydenestes/clearflow" target="_blank">GitHub</a>
       <span id="auth-user-label" style="font-size:0.82em; color:var(--muted);"></span>
       <span id="sync-status" style="font-size:0.78em; color:var(--accent); opacity:0; transition:opacity 0.4s;"></span>
-      <button id="auth-signin-btn" class="btn btn-secondary" style="padding:7px 16px; font-size:0.82em;" onclick="ClearFlowAuth.showAuthModal('signin')">Sign in</button>
-      <button id="auth-signout-btn" class="btn btn-ghost" style="display:none; padding:7px 16px; font-size:0.82em;" onclick="ClearFlowAuth.signOut()">Sign out</button>
+      <button id="auth-signin-btn" class="btn btn-secondary" style="padding:7px 16px; font-size:0.82em;" onclick="MoneyMapAuth.showAuthModal('signin')">Sign in</button>
+      <button id="auth-signout-btn" class="btn btn-ghost" style="display:none; padding:7px 16px; font-size:0.82em;" onclick="MoneyMapAuth.signOut()">Sign out</button>
     </div>
   </nav>
 
@@ -105,12 +105,12 @@
       </div>
 
       <h2 style="font-family:'Fraunces',serif; font-size:1.9em; font-weight:300; margin-bottom:6px;">Tell us about yourself</h2>
-      <p style="color:var(--muted); font-size:0.92em; margin-bottom:32px;">This helps ClearFlow automatically recognize your income and expenses.</p>
+      <p style="color:var(--muted); font-size:0.92em; margin-bottom:32px;">This helps MoneyMap automatically recognize your income and expenses.</p>
 
       <!-- Income section -->
       <div style="margin-bottom:32px;">
         <div style="font-weight:700; font-size:1em; margin-bottom:6px;">💰 Income Sources</div>
-        <p style="color:var(--muted); font-size:0.85em; margin-bottom:16px;">Add each job or income source. ClearFlow will match these to deposits in your bank statement.</p>
+        <p style="color:var(--muted); font-size:0.85em; margin-bottom:16px;">Add each job or income source. MoneyMap will match these to deposits in your bank statement.</p>
 
         <div id="income-entries"></div>
 
@@ -122,7 +122,7 @@
       <!-- Expense categories -->
       <div style="margin-bottom:32px;">
         <div style="font-weight:700; font-size:1em; margin-bottom:6px;">🏷️ Expense Categories</div>
-        <p style="color:var(--muted); font-size:0.85em; margin-bottom:16px;">Select categories that apply to you. ClearFlow auto-maps 1,000+ merchants to these buckets.</p>
+        <p style="color:var(--muted); font-size:0.85em; margin-bottom:16px;">Select categories that apply to you. MoneyMap auto-maps 1,000+ merchants to these buckets.</p>
 
         <div class="cat-grid" id="cat-grid"></div>
 
@@ -134,7 +134,7 @@
 
       <div style="display:flex; gap:12px;">
         <button class="btn btn-primary" style="flex:1; justify-content:center; padding:14px;" onclick="goToUpload()">Continue to Upload →</button>
-        <button class="btn btn-secondary" style="padding:14px 20px;" onclick="ClearFlowAuth.saveProfile()" title="Save profile to your account">💾 Save</button>
+        <button class="btn btn-secondary" style="padding:14px 20px;" onclick="MoneyMapAuth.saveProfile()" title="Save profile to your account">💾 Save</button>
       </div>
     </div>
   </div>
@@ -286,8 +286,8 @@
   <!-- Auth modal -->
   <div id="auth-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; padding:20px;">
     <div style="background:white; border-radius:12px; padding:36px; max-width:420px; width:100%; position:relative;">
-      <button onclick="ClearFlowAuth.hideAuthModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--muted);">✕</button>
-      <h3 id="auth-modal-title" style="font-family:'Fraunces',serif; font-size:1.5em; font-weight:300; margin-bottom:6px;">Sign in to ClearFlow</h3>
+      <button onclick="MoneyMapAuth.hideAuthModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.2em;cursor:pointer;color:var(--muted);">✕</button>
+      <h3 id="auth-modal-title" style="font-family:'Fraunces',serif; font-size:1.5em; font-weight:300; margin-bottom:6px;">Sign in to MoneyMap</h3>
       <p style="color:var(--muted); font-size:0.85em; margin-bottom:24px;">Your profile and preferences will be saved across sessions.</p>
       <div class="form-group">
         <label class="form-label">Email</label>
@@ -295,12 +295,12 @@
       </div>
       <div class="form-group">
         <label class="form-label">Password</label>
-        <input type="password" id="auth-password" class="form-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')ClearFlowAuth.submitAuth()" />
+        <input type="password" id="auth-password" class="form-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')MoneyMapAuth.submitAuth()" />
       </div>
       <div id="auth-error" style="color:var(--danger); font-size:0.85em; margin-bottom:12px; min-height:18px;"></div>
-      <button id="auth-submit-btn" class="btn btn-primary" style="width:100%; justify-content:center;" onclick="ClearFlowAuth.submitAuth()">Sign in</button>
+      <button id="auth-submit-btn" class="btn btn-primary" style="width:100%; justify-content:center;" onclick="MoneyMapAuth.submitAuth()">Sign in</button>
       <div style="text-align:center; margin-top:14px;">
-        <a href="#" id="auth-modal-toggle" style="font-size:0.82em; color:var(--accent); text-decoration:none;" onclick="ClearFlowAuth.toggleAuthMode(); return false;">Don't have an account? Sign up</a>
+        <a href="#" id="auth-modal-toggle" style="font-size:0.82em; color:var(--accent); text-decoration:none;" onclick="MoneyMapAuth.toggleAuthMode(); return false;">Don't have an account? Sign up</a>
       </div>
     </div>
   </div>
@@ -312,6 +312,6 @@
   <script src="js/adapter.js"></script>
   <script src="js/app.js"></script>
   <script src="js/auth.js"></script>
-  <script>ClearFlowAuth.initAuth();</script>
+  <script>MoneyMapAuth.initAuth();</script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /**
- * ClearFlow — Supabase Auth & Profile Sync
+ * MoneyMap — Supabase Auth & Profile Sync
  */
 
 const SUPABASE_URL  = 'https://oogvxhzzdoqucxalohzw.supabase.co';
@@ -53,7 +53,7 @@ function showAuthModal(mode = 'signin') {
   const title = document.getElementById('auth-modal-title');
   const toggle = document.getElementById('auth-modal-toggle');
   modal.dataset.mode = mode;
-  title.textContent = mode === 'signin' ? 'Sign in to ClearFlow' : 'Create your account';
+  title.textContent = mode === 'signin' ? 'Sign in to MoneyMap' : 'Create your account';
   toggle.textContent = mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in';
   document.getElementById('auth-error').textContent = '';
   modal.style.display = 'flex';
@@ -166,7 +166,7 @@ function scheduleSave() {
 }
 
 // Export
-window.ClearFlowAuth = {
+window.MoneyMapAuth = {
   initAuth, showAuthModal, hideAuthModal, toggleAuthMode,
   submitAuth, signOut, saveProfile, scheduleSave
 };
