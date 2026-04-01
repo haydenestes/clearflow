@@ -215,43 +215,62 @@ function parseBankStatement(csv, profile) {
     if (!date || !amount) continue;
 
     const classified = classifyTransaction(date, description, amount, 'bank', profile);
-    transactions.push({ date, description, amount, ...classified });
+    transactions.push({ date, description, amount, account: 'US Bank *2437', ...classified });
   }
 
   return transactions;
 }
 
 /**
- * Parse Citi credit card CSV
+ * Detect account name from credit card CSV headers
+ */
+function detectAccountName(lines) {
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
+    const line = lines[i];
+    // Amex: "American Express Gold Card / Jan 01, 2026 to Mar 31, 2026"
+    if (line.includes('American Express Gold')) return 'Amex Gold *82005';
+    if (line.includes('Platinum Card')) return 'Amex Platinum *71008';
+    if (line.includes('American Express')) {
+      // Try to extract account number from line like "XXXX-XXXXXX-82005"
+      const match = line.match(/XXXX-XXXXXX-(\d+)/);
+      return match ? `Amex *${match[1]}` : 'Amex';
+    }
+    // Citi: rows start with "Cleared"
+    if (line.includes('Cleared')) return 'Citi Credit Card';
+    // Also check account number row
+    const acctMatch = line.match(/XXXX-XXXXXX-(\d+)/);
+    if (acctMatch) return `Card *${acctMatch[1]}`;
+  }
+  return 'Credit Card';
+}
+
+/**
+ * Parse credit card CSV (Citi or Amex)
  */
 function parseCitiStatement(csv) {
   const lines = csv.trim().split('\n');
   const transactions = [];
+  const accountName = detectAccountName(lines);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
 
-    // Detect format by checking if row has "Status,Date,Description"
     const parts = line.split(',');
     if (parts.length < 5) continue;
 
-    // Amex format: Date is col 0, Description col 1, Amount col 4
     const maybeDate = (parts[0] || '').replace(/"/g, '').trim();
     const isAmexRow = /^\d{2}\/\d{2}\/\d{4}$/.test(maybeDate);
-
-    // Citi format: Status col 0, Date col 1, Description col 2, Debit col 3, Credit col 4
     const isCitiRow = (parts[0] || '').replace(/"/g, '').trim() === 'Cleared';
 
     if (isAmexRow) {
-      // Amex: positive = charge, negative = payment/credit
       try {
         const date = maybeDate;
         const description = (parts[1] || '').replace(/"/g, '').trim();
         const amount = parseFloat((parts[4] || '0').replace(/"/g, '').trim());
         if (!amount || amount < 0) continue; // skip payments/credits
         const classified = classifyTransaction(date, description, -amount, 'amex');
-        transactions.push({ date, description, amount: -amount, ...classified });
+        transactions.push({ date, description, amount: -amount, account: accountName, ...classified });
       } catch(e) { continue; }
     } else if (isCitiRow) {
       try {
@@ -262,7 +281,7 @@ function parseCitiStatement(csv) {
         const amount = credit - debit;
         if (!date || !amount) continue;
         const classified = classifyTransaction(date, description, amount, 'citi');
-        transactions.push({ date, description, amount, ...classified });
+        transactions.push({ date, description, amount, account: accountName, ...classified });
       } catch(e) { continue; }
     }
   }
@@ -311,6 +330,7 @@ function parseVenmoStatement(csv) {
       date,
       description: note,
       amount: finalAmount,
+      account: 'Venmo (@Hayden-Estes)',
       ...classified
     });
   }

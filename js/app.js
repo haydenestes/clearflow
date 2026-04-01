@@ -377,7 +377,7 @@ function renderTransactions(result) {
   const allCats = [...INCOME_CATS, ...getActiveCats()];
   const catMap = Object.fromEntries(allCats.map(c=>[c.key,c]));
   let html = '<div style="overflow-x:auto;"><table class="report-table">';
-  html += '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
+  html += '<thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
   const displayTxns = txns.slice(0,300);
   displayTxns.forEach((t, idx) => {
     const cat   = catMap[t.category] || { icon:'•', label: t.category };
@@ -387,14 +387,16 @@ function renderTransactions(result) {
       ${catOptions}
       <option value="__add__">➕ Add new category...</option>
     </select>`;
+    const acctLabel = t.account || '—';
     html += `<tr>
       <td style="color:var(--muted);white-space:nowrap;">${t.date}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.description}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.description}</td>
+      <td style="white-space:nowrap;font-size:0.82em;color:var(--muted);">${acctLabel}</td>
       <td><span class="badge" style="background:var(--accent-light);color:var(--accent-dark);">${cat.icon||''} ${cat.label||t.category}</span>${selectHtml}</td>
-      <td style="text-align:right;color:${color};font-weight:600;">${t.amount>=0?'+':'–'}${fmt(t.amount)}</td>
+      <td style="text-align:right;color:${color};font-weight:600;white-space:nowrap;">${t.amount>=0?'+':'–'}${fmt(t.amount)}</td>
     </tr>`;
   });
-  if (txns.length > 300) html += `<tr><td colspan="4" style="color:var(--muted);font-size:0.82em;padding:10px;">Showing 300 of ${txns.length}. Export CSV for full list.</td></tr>`;
+  if (txns.length > 300) html += `<tr><td colspan="5" style="color:var(--muted);font-size:0.82em;padding:10px;">Showing 300 of ${txns.length}. Export CSV for full list.</td></tr>`;
   html += '</tbody></table></div>';
   document.getElementById('transactions-content').innerHTML = html;
 }
@@ -591,8 +593,8 @@ function downloadCSV() {
     alert('No transaction data. Run a report with uploaded files first.');
     return;
   }
-  const csv = 'Date,Description,Amount,Category,Type\n' +
-    lastResult.transactions.map(t=>`"${t.date}","${t.description}",${t.amount},"${t.category}","${t.type}"`).join('\n');
+  const csv = 'Date,Description,Account,Amount,Category,Type\n' +
+    lastResult.transactions.map(t=>`"${t.date}","${t.description}","${t.account||''}",${t.amount},"${t.category}","${t.type}"`).join('\n');
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})),
     download: 'clearflow-transactions.csv',
